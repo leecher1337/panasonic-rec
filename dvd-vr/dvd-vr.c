@@ -4,6 +4,7 @@
               from a DVD-VR format disc
 
  Copyright © 2007-2010 Pádraig Brady <P@draigBrady.com>
+ Adapted for Panasonic recorder DVD-RAM structures by <leecher@dose.0wnz.at>
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -54,11 +55,13 @@ Requirements:
 
     gcc >= 2.95
     glibc >= 2.3.3 on linux
-    Tested on linux, CYGWIN and Mac OS X
+    Tested on linux, MINGW and Mac OS X
 */
 
 #define _GNU_SOURCE           /* for posix_fadvise(), futimes() */
 #define _FILE_OFFSET_BITS 64  /* for implicit large file support */
+#define __USE_MINGW_ANSI_STDIO 1
+#define __STDC_FORMAT_MACROS 1
 
 #include <inttypes.h>
 #include <stdbool.h>
@@ -79,6 +82,15 @@ Requirements:
 #include <sys/time.h>
 #include <errno.h>
 #include <limits.h>
+#include <utime.h>
+
+#ifdef MINGW
+#include <winsock.h>
+#define gmtime_r(x,y) (*y=*gmtime(x))
+#else
+#include <netinet/in.h>
+#endif
+
 
 #if !defined(MB_LEN_MAX) || MB_LEN_MAX<16
 /* 1 char could be converted to 2 multibyte chars
@@ -110,7 +122,7 @@ Requirements:
 #define STATIC_ASSERT(e,m) enum { ASSERT_CONCAT(assert_line_, __LINE__) = 1/(!!(e)) }
 
 #if defined(__CYGWIN__) || defined(_WIN32) /* windos doesn't like : in filenames */
-#define TIMESTAMP_FMT "%F_%H-%M-%S"
+#define TIMESTAMP_FMT "%Y-%m-%d_%H-%M-%S"
 #else
 #define TIMESTAMP_FMT "%F_%T" /* keep : in filenames for backward compat */
 #endif
@@ -118,12 +130,16 @@ const char* base_name = TIMESTAMP_FMT;
 
 FILE* stdinfo; /* Where we write disc info */
 
-#include <langinfo.h>
 #ifdef HAVE_ICONV
 #include <iconv.h>
+#include <langinfo.h>
+
+const char* sys_charset;
+#endif
+#ifndef O_BINARY
+#define O_BINARY 0
 #endif
 const char* disc_charset;
-const char* sys_charset;
 
 /*********************************************************************************
  *                          support routines
@@ -209,9 +225,9 @@ void percent_display(percent_control_t percent_control, unsigned int percent, in
    to the specified broken down time */
 static int touch(const char* filename, struct tm* tm)
 {
-    time_t ut = mktime(tm);
-    struct timeval tv[2]={ {.tv_sec=ut, .tv_usec=0}, {.tv_sec=ut, .tv_usec=0} };
-    return utimes(filename, tv);
+	struct utimbuf utb;
+	utb.actime=utb.modtime=mktime(tm);
+    return utime(filename, &utb);
 }
 
 typedef void (*process_func_t)(uint8_t* buf, unsigned int bs, void* context);
@@ -368,6 +384,7 @@ static int stream_data(int src_fd, int dst_fd, uint32_t blocks, uint16_t block_s
 }
 #endif //MMAP_WRITE
 
+#ifdef HAVE_ICONV
 static const char* get_charset(void)
 {
     const char* codeset = nl_langinfo(CODESET);
@@ -403,6 +420,7 @@ static const char* get_charset(void)
 #endif
     return codeset;
 }
+#endif
 
 static bool text_convert(const char *src, size_t srclen, char *dst, size_t dstlen)
 {
@@ -415,8 +433,8 @@ static bool text_convert(const char *src, size_t srclen, char *dst, size_t dstle
                 ret=true;
             }
         } else {
-            fprintf(stderr, "Error converting text from %s to %s\n",
-                    disc_charset, sys_charset);
+			strncpy(dst, src, dstlen<srclen+1?dstlen:srclen+1);
+			ret=true;
         }
         iconv_close (cd);
     } else {
@@ -424,9 +442,9 @@ static bool text_convert(const char *src, size_t srclen, char *dst, size_t dstle
                 disc_charset, sys_charset);
     }
 #else
-    /* avoid warnings (__attribute__ ((unused)) is too verbose/non standard) */
-    (void)src; (void)dst; (void)srclen; (void)dstlen;
-    fprintf(stderr, "Error converting text. libiconv missing\n");
+	/* Just do not convert */
+	strncpy(dst, src, dstlen<srclen+1?dstlen:srclen+1);
+	ret=true;
 #endif
     return ret;
 }
@@ -469,12 +487,8 @@ p_program_attr_t* ifo_program_attrs;
 # error "Your compiler doesn't support __attribute__ ((packed))"
 #endif
 
-/* DVD structures are in network byte order (big endian) */
-#include <netinet/in.h>
-#undef NTOHS
-#undef NTOHL
-#define NTOHS(x) x=ntohs(x) /* 16 bit */
-#define NTOHL(x) x=ntohl(x) /* 32 bit */
+#define NTOHS(x)
+#define NTOHL(x)
 
 #define DVD_SECTOR_SIZE 2048
 
@@ -482,41 +496,14 @@ typedef struct {
     struct {
         /* Suffix numbers are decimal offsets */
         /* 0 */
-        char     id[12];
         uint32_t vmg_ea;         /* end address */
-        uint8_t  zero_16[12];
-        uint32_t vmgi_ea;        /* includes playlist info after this structure */
-        uint16_t version;        /* specification version */
-        /* 34 */                 /* Different from DVD-Video from here */
-        uint8_t  zero_34[30];
-        uint8_t  data_64[3];
-        uint8_t  txt_encoding;   /* as per VideoTextDataUsage.pdf */
-        uint8_t  data_68[30];
-        /* 98 */
-        char     disc_info1[64]; /* format name, or copy of disc_info2. */
-        char     disc_info2[64]; /* format name, time or user label.. */
-        uint8_t  zero_226[30];
-        /* 256 */
-        uint32_t pgit_sa;        /* program info table start address */
-        uint32_t info_260_sa;    /* ? start address */
-        uint8_t  zero_264[3];
-        struct {
-            uint8_t supported;   /* Encrypted Title Key Status */
-            uint8_t title_key[8];/* This needs to be decrypted using media key */
-        } cprm;
-        uint8_t  zero_276[28];
-        /* 304 */
+		uint32_t unk1;
         uint32_t def_psi_sa;     /* default program set info start address */
-        uint32_t info_308_sa;    /* ? start address */
-        uint32_t info_312_sa;    /* user defined program set info start address? */
-        uint32_t info_316_sa;    /* ? start address */
-        uint8_t  zero_320[32];
-        uint32_t txt_attr_sa;    /* extra attributes for programs (chan id etc.) */
         uint32_t info_356_sa;    /* ? start address */
-        uint8_t  zero_360[152];
+		uint32_t unk2_sa;
+        uint32_t pgit_sa;        /* program info table start address */
     } PACKED mat;
 } PACKED rtav_vmgi_t; /*Real Time AV (from DVD_RTAV dir)*/
-STATIC_ASSERT(sizeof(rtav_vmgi_t) == 512,""); /* catch any miscounting above */
 
 typedef struct {
     uint8_t audio_attr[3];
@@ -543,6 +530,7 @@ typedef struct {
     uint8_t  data[12];
 } PACKED adj_vob_t;
 typedef struct {
+	uint16_t unk1;
     uint16_t nr_of_time_info;
     uint16_t nr_of_vobu_info;
     uint16_t time_offset;
@@ -749,7 +737,7 @@ static bool parse_pgtm(pgtm_t pgtm, struct tm* tm)
         tm->tm_isdst=-1; /*Auto calc DST offset.*/
 
         char date_str[32];
-        strftime(date_str,sizeof(date_str),"%F %T",tm); //locale = %x %X
+        strftime(date_str,sizeof(date_str),"%Y-%m-%d %H:%M:%S",tm); //locale = %x %X
         fprintf(stdinfo, "date : %s\n",date_str);
         ret=true;
     } else {
@@ -765,7 +753,10 @@ static void print_psi(psi_gi_t* psi_gi)
     putc('\n', stdinfo);
     int ps;
     uint16_t program_count = 0;
-    for (ps=0; ps<psi_gi->nr_of_psi; ps++) {
+	short nr_of_psi = psi_gi->nr_of_psi;
+
+	if (!nr_of_psi) nr_of_psi=1;	/* Hack, maybe it's always 1 on pana? */
+    for (ps=0; ps<nr_of_psi; ps++) {
         psi_t *psi = (psi_t*)(((char*)(psi_gi+1)) + (ps * sizeof(psi_t)));
 
         uint16_t first_prog_num = ntohs(psi->first_prog_id); /* assuming this is first to play? */
@@ -796,7 +787,10 @@ static psi_t* find_program_text_info(psi_gi_t* psi_gi, int program)
 {
     int ps;
     uint16_t program_count = 0;
-    for (ps=0; ps<psi_gi->nr_of_psi; ps++) {
+	short nr_of_psi = psi_gi->nr_of_psi;
+
+	if (!nr_of_psi) nr_of_psi=1;	/* Hack, maybe it's always 1 on pana? */
+    for (ps=0; ps<nr_of_psi; ps++) {
         psi_t *psi = (psi_t*)(((char*)(psi_gi+1)) + (ps * sizeof(psi_t)));
         uint16_t start_prog_num;
         /*
@@ -854,6 +848,7 @@ static char* text_field_convert(const char* field, unsigned int len)
     return field_local;
 }
 
+#if 0
 /* Filter redundant info */
 static bool disc_info_redundant(const char* info)
 {
@@ -897,6 +892,7 @@ static void print_disc_info(rtav_vmgi_t* rtav_vmgi_ptr)
         free(txt_local);
     }
 }
+#endif
 
 static char* mb_clean_name(const char* src)
 {
@@ -1326,7 +1322,9 @@ static void get_options(int argc, char** argv)
 int main(int argc, char** argv)
 {
     setlocale(LC_ALL,"");
+#ifdef HAVE_ICONV
     sys_charset=get_charset();
+#endif
 
     get_options(argc, argv);
 
@@ -1336,28 +1334,24 @@ int main(int argc, char** argv)
         stdinfo = stdout; /* allow users to grep metadata etc. */
     }
 
-    int fd=open(ifo_name,O_RDONLY);
+    int fd=open(ifo_name,O_RDONLY|O_BINARY);
     if (fd == -1) {
         fprintf(stderr, "Error opening [%s] (%s)\n", ifo_name, strerror(errno));
         exit(EXIT_FAILURE);
     }
 
-    rtav_vmgi_t* rtav_vmgi_ptr=mmap(0,sizeof(rtav_vmgi_t),PROT_READ|PROT_WRITE,MAP_PRIVATE,fd,0);
+    rtav_vmgi_t* rtav_vmgi_ptr=mmap(0,sizeof(rtav_vmgi_t),PROT_READ,MAP_PRIVATE,fd,0);
     if (rtav_vmgi_ptr == MAP_FAILED) {
         fprintf(stderr, "Failed to MMAP ifo file (%s)\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
-    if (strncmp("DVD_RTR_VMG0",rtav_vmgi_ptr->mat.id,sizeof(rtav_vmgi_ptr->mat.id))) {
-        fprintf(stderr, "invalid DVD-VR IFO identifier\n");
-        exit(EXIT_FAILURE);
-    }
 
-    uint32_t vmg_size = NTOHL(rtav_vmgi_ptr->mat.vmg_ea) + 1;
+    uint32_t vmg_size = rtav_vmgi_ptr->mat.vmg_ea + 1;
     if (munmap(rtav_vmgi_ptr, sizeof(rtav_vmgi_t)) !=0) {
         fprintf(stderr, "Failed to unmap ifo file (%s)\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
-    rtav_vmgi_ptr=mmap(0,vmg_size,PROT_READ|PROT_WRITE,MAP_PRIVATE,fd,0);
+    rtav_vmgi_ptr=mmap(0,vmg_size,PROT_READ,MAP_PRIVATE,fd,0);
     if (rtav_vmgi_ptr == MAP_FAILED) {
         fprintf(stderr, "Failed to re MMAP ifo file (%s)\n", strerror(errno));
         exit(EXIT_FAILURE);
@@ -1365,7 +1359,7 @@ int main(int argc, char** argv)
 
     int vro_fd=-1;
     if (vro_name) {
-        vro_fd=open(vro_name,O_RDONLY);
+        vro_fd=open(vro_name,O_RDONLY|O_BINARY);
         if (vro_fd == -1) {
             fprintf(stderr, "Error opening [%s] (%s)\n", vro_name, strerror(errno));
             exit(EXIT_FAILURE);
@@ -1376,6 +1370,7 @@ int main(int argc, char** argv)
     }
 
     NTOHS(rtav_vmgi_ptr->mat.version);
+#if 0
     rtav_vmgi_ptr->mat.version &= 0x00FF;
     fprintf(stdinfo, "format: DVD-VR V%d.%d\n",
             rtav_vmgi_ptr->mat.version>>4,rtav_vmgi_ptr->mat.version&0x0F);
@@ -1388,6 +1383,9 @@ int main(int argc, char** argv)
     disc_charset=parse_txt_encoding(rtav_vmgi_ptr->mat.txt_encoding);
 
     print_disc_info(rtav_vmgi_ptr);
+#else
+	disc_charset=parse_txt_encoding(0);
+#endif
 
     NTOHL(rtav_vmgi_ptr->mat.pgit_sa);
     pgiti_t* pgiti = (pgiti_t*) ((char*)rtav_vmgi_ptr + rtav_vmgi_ptr->mat.pgit_sa);
@@ -1457,6 +1455,7 @@ int main(int argc, char** argv)
     unsigned int program;
     typedef uint32_t vvobi_sa_t;
     vvobi_sa_t* vvobi_sa=(vvobi_sa_t*)(pgi_gi+1);
+	vobu_info_t* vobu_info = NULL;
     for (program=0; program<pgi_gi->nr_of_programs; program++) {
 
         if (required_program && program+1!=required_program) {
@@ -1522,13 +1521,13 @@ int main(int argc, char** argv)
                 vob_fd=fileno(stdout);
             } else {
                 (void) snprintf(vob_name,sizeof(vob_name),"%s.vob",vob_base);
-                vob_fd=open(vob_name,O_WRONLY|O_CREAT|O_EXCL,0666);
+                vob_fd=open(vob_name,O_WRONLY|O_CREAT|O_EXCL|O_BINARY,0666);
                 if (vob_fd == -1 && errno == EEXIST && STREQ(base_name, TIMESTAMP_FMT)) {
                     /* JVC DVD recorder can generate duplicate timestamps at least :( */
                     /* FIXME: The second time ripping a disc will duplicate the first VOB with duplicate timestamp.
                     * Would need to scan all program info first and change format if any duplicate timestamps. */
                     (void) snprintf(vob_name,sizeof(vob_name),"%s#%03d.vob",vob_base, program+1);
-                    vob_fd=open(vob_name,O_WRONLY|O_CREAT|O_EXCL,0666);
+                    vob_fd=open(vob_name,O_WRONLY|O_CREAT|O_EXCL|O_BINARY,0666);
                 }
             }
             if (vob_fd == -1) {
@@ -1578,7 +1577,7 @@ hexdump(vobu_map, sizeof(vobu_map_t));
                 exit(EXIT_FAILURE);
             }
         }
-        vobu_info_t* vobu_info = (vobu_info_t*) (((uint8_t*)(vobu_map+1)) + vobu_map->nr_of_time_info*sizeof(time_info_t));
+        vobu_info = (vobu_info_t*) (((uint8_t*)(vobu_map+1)) + vobu_map->nr_of_time_info*sizeof(time_info_t));
         int vobus;
         uint64_t tot=0;
         int display_char;
@@ -1590,7 +1589,8 @@ hexdump(vobu_map, sizeof(vobu_map_t));
         }
         for (vobus=0; vobus<vobu_map->nr_of_vobu_info; vobus++) {
             uint16_t vobu_size = *(uint16_t*)(&vobu_info->vobu_info[1]);
-            NTOHS(vobu_size); vobu_size&=0x03FF;
+			vobu_size=ntohs(vobu_size);
+            vobu_size&=0x03FF;
 #ifndef NDEBUG
 		fprintf(stdinfo, "vobu #%d size: %d\n", vobus, vobu_size);
 #endif
