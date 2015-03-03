@@ -1,10 +1,17 @@
-NAME := dvd-vr
+	NAME := dvd-vr
 VERSION := 0.9.8b
 PREFIX := /usr/local
 DESTDIR :=
 
 # Using override to append to user supplied CFLAGS
 override CFLAGS+=-std=gnu99 -Wall -Wextra -Wpadded -DVERSION='"$(VERSION)"'
+
+SYS := $(shell gcc -dumpmachine)
+ifneq (, $(findstring mingw, $(SYS)))
+CC := gcc
+override CFLAGS+=-DMINGW -Imingw/
+override LDFLAGS+=-lwsock32 mingw/sys/mman.c
+endif
 
 # Use `make DEBUG=1` to build debugging version
 ifeq ($(DEBUG),1)
@@ -27,7 +34,12 @@ endif
 
 # Use iconv when available
 # This is not cached across make invocations unfortunately
+ifneq (, $(findstring mingw, $(SYS)))
+# Not really needed on Windows...
+HAVE_ICONV := 0
+else
 HAVE_ICONV := $(shell echo "\#include <iconv.h>" | cpp >/dev/null 2>&1 && echo 1 || echo 0)
+endif
 ifeq ($(HAVE_ICONV),1)
     override CFLAGS+=-DHAVE_ICONV
 
@@ -38,7 +50,7 @@ ifeq ($(HAVE_ICONV),1)
     # Add -liconv where available/required like Mac OS X & CYGWIN for example
     NEED_LICONV := $(shell echo "int main(void){}" | $(CC) -xc -liconv - -o liconv_test 2>/dev/null && echo 1 || echo 0; rm -f liconv_test)
     ifeq ($(NEED_LICONV),1)
-        LDFLAGS+=-liconv
+        override LDFLAGS+=-liconv
     endif
 else
     $(warning "Warning: title translation support disabled as libiconv not installed")
