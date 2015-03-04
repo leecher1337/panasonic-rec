@@ -129,6 +129,30 @@ int dump_file(int fdd, off64_t start, inode *inode, char *outfile)
 	return 0;
 }
 
+#define INODE_OFFSET(tbl,idx) \
+	(((off64_t)tbl[idx/ITBL_SZ].entries[idx].hoffset<<32)+tbl[idx/ITBL_SZ].entries[idx].offset)
+#define ITABLES	2
+
+int read_itbl(int fdd, off64_t start, itbl *itble)
+{
+	/* I don't know yet how they can be found, so they are just hardcoded atm */
+	off64_t itbl_offsets[] = {ITBL_START, ITBL_START+0xF000};
+	int i;
+
+	/* Read INODE directories (don't know how they are referenced yet :( ) */
+	for (i=0; i<ITABLES; i++)
+	{
+		if (lseek64(fdd, start + itbl_offsets[i], SEEK_SET) == (off64_t)-1 ||
+			read(fdd, &itble[i], sizeof(itble[0])) != sizeof(itble[0]))
+		{
+			fprintf (stderr, "Cannot read Inode directory @%10llX: %s\n", 
+				start + itbl_offsets[i], strerror(errno));
+			return -1;
+		}
+	}
+	return 0;
+}
+
 int dump_dir(int fdd, off64_t start, itbl *itble, directory *dir, char *outdir)
 {
 	int i;
@@ -145,12 +169,12 @@ int dump_dir(int fdd, off64_t start, itbl *itble, directory *dir, char *outdir)
 		if (dir->entries[i].inode_id == -1) continue;
 
 		/* Seek to given INODE */
-		if (lseek64(fdd, (offset = start + 
-			(((off64_t)itble->entries[dir->entries[i].inode_id].hoffset<<32) + itble->entries[dir->entries[i].inode_id].offset)* ISIZE),
+		if (lseek64(fdd, (offset = start + INODE_OFFSET(itble,dir->entries[i].inode_id) * ISIZE),
 			 SEEK_SET) == (off64_t)-1 ||
 			(rd=read(fdd, buffer, sizeof(buffer))) != sizeof(buffer))
 		{
-			fprintf (stderr, "Dir entry %d: Cannot read INODE %d @%10llX [rd=%d]: %s\n", i, dir->entries[i].inode_id, offset, rd, strerror(errno));
+			fprintf (stderr, "Dir entry %d: Cannot read INODE %d @%10llX [rd=%d]: %s\n", 
+				i, dir->entries[i].inode_id, offset, rd, strerror(errno));
 			return -1;
 		}
 
@@ -163,28 +187,23 @@ int dump_dir(int fdd, off64_t start, itbl *itble, directory *dir, char *outdir)
 			inod = (inode*)buffer;
 			if (inod->magic != INODE_MAGIC)
 			{
-				fprintf (stderr, "Dir entry %d: INODE %d is not a file inode (magic=%08X)\n", i, dir->entries[i].inode_id, inod->magic);
+				fprintf (stderr, "Dir entry %d: INODE %d is not a file inode (magic=%08X)\n", 
+					i, dir->entries[i].inode_id, inod->magic);
 				return -1;
 			}
 			if (!inod->runs[0].start)
 			{
-				itbl itbl1;
+				itbl itbl1[ITABLES]={0};
 
 				// This is an incomplete inode search backup inode tables if there are other inode ptrs in there
-				for (offset=start + (off64_t)ITBL_START + ((off64_t)GSIZE*(off64_t)ASIZE); 
-					 lseek64(fdd, offset, SEEK_SET)!=(off64_t)-1; offset+=(off64_t)GSIZE*ASIZE)
+				if (read_itbl(fdd, start + (off64_t)GSIZE*(off64_t)ASIZE, itbl1)>=0)
 				{
-					if (read(fdd, &itbl1, sizeof(itbl1)) == sizeof(itbl1))
+					if (INODE_OFFSET(itbl1,dir->entries[i].inode_id) != INODE_OFFSET(itble,dir->entries[i].inode_id))
 					{
-						if (itbl1.entries[dir->entries[i].inode_id].hoffset != itble->entries[dir->entries[i].inode_id].hoffset ||
-							itbl1.entries[dir->entries[i].inode_id].offset != itble->entries[dir->entries[i].inode_id].offset)
-						{
-							if (lseek64(fdd, (offset = start + 
-								(((off64_t)itbl1.entries[dir->entries[i].inode_id].hoffset<<32) + 
-								 (off64_t)itbl1.entries[dir->entries[i].inode_id].offset) * ISIZE), SEEK_SET) != (off64_t)-1 &&
-								read(fdd, buffer, sizeof(buffer)) == sizeof(buffer) && inod->runs[0].start)
-								break;
-						}
+						if (lseek64(fdd, (offset = start + INODE_OFFSET(itbl1,dir->entries[i].inode_id) * ISIZE), 
+							SEEK_SET) != (off64_t)-1 &&
+							read(fdd, buffer, sizeof(buffer)) == sizeof(buffer) && inod->runs[0].start)
+							break;
 					}
 				}
 			}
@@ -217,10 +236,11 @@ int main(int argc, char **argv)
 {
 	int fdd;
 	off64_t start, offset;
-	itbl itbl;
+	itbl itbl[ITABLES]={0};
 	directory root;
 	int ret;
 
+	printf ("extract_meihdfs V1.1 - (c) leecher@dose.0wnz.at, 2015\n\n");
 	if (argc<3)
 	{
 		printf ("Usage: %s <Image> <Output dir>\n", argv[0]);
@@ -234,24 +254,15 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	/* Search header */
-	if (search_hdr(fdd, &start)<0)
+	/* Search header, read INODE directories */
+	if (search_hdr(fdd, &start)<0 || read_itbl(fdd, start, itbl)<0)
 	{
-		close(fdd);
-		return -1;
-	}
-
-	/* Read INODE directory */
-	if (lseek64(fdd, start + ITBL_START, SEEK_SET) == (off64_t)-1 ||
-		read(fdd, &itbl, sizeof(itbl)) != sizeof(itbl))
-	{
-		fprintf (stderr, "Cannot read Inode directory @%10llX: %s\n", start + ITBL_START, strerror(errno));
 		close(fdd);
 		return -1;
 	}
 
 	/* Seek to INODE 0 (root directory) and read it */
-	if (lseek64(fdd, (offset = start + (((off64_t)itbl.entries[0].hoffset<<32) + (off64_t)itbl.entries[0].offset) * ISIZE), SEEK_SET) == (off64_t)-1 ||
+	if (lseek64(fdd, (offset = start + INODE_OFFSET(itbl,0) * ISIZE), SEEK_SET) == (off64_t)-1 ||
 		read(fdd, &root, sizeof(root)) != sizeof(root))
 	{
 		fprintf (stderr, "Cannot read root directory @%10llX: %s\n", offset, strerror(errno));
@@ -265,7 +276,7 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	ret = dump_dir(fdd, start, &itbl, &root, argv[2]);
+	ret = dump_dir(fdd, start, itbl, &root, argv[2]);
 	close(fdd);
 	return ret;
 }

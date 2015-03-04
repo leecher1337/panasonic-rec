@@ -50,7 +50,7 @@ image.dd
 You need to have an empty destination directory where the VOB files will
 be recovered to. Assuming your destination directory is f:\dump just issue:
 
-extract image.dd f:\dump
+extract_meihdfs image.dd f:\dump
 
 This will extract a DVD-RAM directory structure like it can be found on
 the harddisk:
