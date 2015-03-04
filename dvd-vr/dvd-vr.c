@@ -1256,6 +1256,9 @@ static void usage(char** argv, int error)
                    "                     If you pass `-' the vob files will be written to stdout.\n"
                    "                     If you pass `[label]' the names will be based on\n"
                    "                     a sanitized version of the title or label.\n"
+                   "                     `[ts]' means timestamp\n"
+                   "                     `[pgm]' means the program number\n"
+                   "                     So you can combine i.e.: [ts]-[label]#[pgm]\n"
                    "\n"
                    "      --help         Display this help and exit.\n"
                    "      --version      Output version information and exit.\n"
@@ -1482,6 +1485,8 @@ int main(int argc, char** argv)
         struct tm tm;
         bool ts_ok = parse_pgtm(vvob->vob_timestamp,&tm);
         char vob_base[(sizeof(psi->title)*MB_LEN_MAX)+4/*#123*/+1/*NUL*/];
+
+			
         if (STREQ(base_name, TIMESTAMP_FMT)) { //use timestamp to give unique filename
             if (ts_ok) {
                 strftime(vob_base,sizeof(vob_base),TIMESTAMP_FMT,&tm);
@@ -1490,29 +1495,38 @@ int main(int argc, char** argv)
                 int datelen=strlen(vob_base);
                 (void) snprintf(vob_base+datelen, sizeof(vob_base)-datelen, "#%03d", program+1);
             }
-        } else if (STREQ(base_name, "[label]")) { //use the label to generate filename
-            if (!psi) {
-                fprintf(stderr, "Error: Couldn't generate name based on label\n");
-                exit(EXIT_FAILURE);
-            }
-            char* label_base = get_label_base(psi);
-            if (!label_base) {
-                fprintf(stderr, "Error: Couldn't generate name based on empty label\n");
-                exit(EXIT_FAILURE);
-            }
-            unsigned int ret = snprintf(vob_base, sizeof(vob_base), "%s#%03d", label_base, program+1);
-            if (ret >= sizeof(vob_base)) { /* Shouldn't happen.  */
-                fprintf(stderr, "Error: label is too long\n");
-                exit(EXIT_FAILURE);
-            }
-            free(label_base);
         } else {
-            unsigned int ret = snprintf(vob_base, sizeof(vob_base), "%s#%03d", base_name, program+1);
-            if (ret >= sizeof(vob_base)) {
-                fprintf(stderr, "Error: Specified basename is too long (>%zu)\n", sizeof(vob_base)-4);
-                exit(EXIT_FAILURE);
+            char fmt[sizeof(vob_base)-5]={0}, *pbase, *pfmt;
+            bool app_pgm=true;
+
+            for (pfmt=fmt, pbase=(char*)base_name; *pbase; ) {
+                if ((unsigned int)(pfmt-fmt)>=sizeof(fmt)-1) break;
+                if (!strncmp(pbase, "[label]", 7)) { //use the label to generate filename
+                    if (!psi) {
+                        fprintf(stderr, "Error: Couldn't generate name based on label\n");
+                        exit(EXIT_FAILURE);
+                    }
+                    char* label_base = get_label_base(psi);
+                    if (!label_base) {
+                        fprintf(stderr, "Error: Couldn't generate name based on empty label\n");
+                        exit(EXIT_FAILURE);
+                    }
+
+                    pfmt+=snprintf(pfmt, sizeof(fmt)-(pfmt-fmt)-1, "%s", label_base);
+                    //#%03d", label_base, program+1);
+                    free(label_base);
+                    pbase+=7;
+                } else if (!strncmp(pbase, "[ts]", 4)) {
+                    pfmt+=snprintf(pfmt, sizeof(fmt)-(pfmt-fmt)-1, "%s", TIMESTAMP_FMT);
+                    pbase+=4; app_pgm=false;
+                } else if (!strncmp(pbase, "[pgm]", 5)) {
+                    pfmt+=snprintf(pfmt, sizeof(fmt)-(pfmt-fmt)-1, "%03d", program+1);
+                    pbase+=5; app_pgm=false;
+                } else *pfmt++=*pbase++;
             }
-        }
+            if (app_pgm) sprintf(pfmt, "#%03d", program+1);
+            strftime(vob_base,sizeof(vob_base),fmt,ts_ok?&tm:&now_tm);
+        } 
 
         int vob_fd=-1;
         char vob_name[sizeof(vob_base)+4];
