@@ -51,6 +51,7 @@ typedef struct block_run {
 #define MPEG_MAGIC	0xBA010000
 
 #define INODE_RUNS 0x500	// Actually computed from ISIZE
+#define ITBL_SZ    0x3FE	// Number of inodes in one table
 
 typedef struct inode {
     uint32 generation;	// Ok, not sure what EXACTLY that is, but it DOES match on all stuff done last ... AND it's in superblock.
@@ -87,7 +88,7 @@ typedef struct {
 	uint32 magic;	// For me it is always 173C, but I don't know if this is variable or magic
 	uint32 i1;
 	uint32 i2;
-	itbl_entry entries[0x400];	// Inode list
+	itbl_entry entries[ITBL_SZ];	// Inode list
 } itbl;
 
 /*
