@@ -194,9 +194,10 @@ int dump_dir(int fdd, off64_t start, itbl *itble, directory *dir, char *outdir)
 			if (!inod->runs[0].start)
 			{
 				itbl itbl1[ITABLES]={0};
+				int j;
 
 				// This is an incomplete inode search backup inode tables if there are other inode ptrs in there
-				if (read_itbl(fdd, start + (off64_t)GSIZE*(off64_t)ASIZE, itbl1)>=0)
+				for (j=1; read_itbl(fdd, start + j*(off64_t)GSIZE*(off64_t)ASIZE, itbl1)>=0; j++)
 				{
 					if (INODE_OFFSET(itbl1,dir->entries[i].inode_id) != INODE_OFFSET(itble,dir->entries[i].inode_id))
 					{
