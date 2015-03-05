@@ -130,7 +130,7 @@ int dump_file(int fdd, off64_t start, inode *inode, char *outfile)
 }
 
 #define INODE_OFFSET(tbl,idx) \
-	(((off64_t)tbl[idx/ITBL_SZ].entries[idx].hoffset<<32)+tbl[idx/ITBL_SZ].entries[idx].offset)
+	(((off64_t)tbl[idx/ITBL_SZ].entries[idx%ITBL_SZ].hoffset<<32)+tbl[idx/ITBL_SZ].entries[idx%ITBL_SZ].offset)
 #define ITABLES	2
 
 int read_itbl(int fdd, off64_t start, itbl *itble)
@@ -241,7 +241,7 @@ int main(int argc, char **argv)
 	directory root;
 	int ret;
 
-	printf ("extract_meihdfs V1.1 - (c) leecher@dose.0wnz.at, 2015\n\n");
+	printf ("extract_meihdfs V1.2 - (c) leecher@dose.0wnz.at, 2015\n\n");
 	if (argc<3)
 	{
 		printf ("Usage: %s <Image> <Output dir>\n", argv[0]);
