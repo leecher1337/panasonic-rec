@@ -123,6 +123,7 @@ Requirements:
 
 #if defined(__CYGWIN__) || defined(_WIN32) /* windos doesn't like : in filenames */
 #define TIMESTAMP_FMT "%Y-%m-%d_%H-%M-%S"
+#define mkdir(x,y) mkdir(x)
 #else
 #define TIMESTAMP_FMT "%F_%T" /* keep : in filenames for backward compat */
 #endif
@@ -1501,6 +1502,12 @@ int main(int argc, char** argv)
 
             for (pfmt=fmt, pbase=(char*)base_name; *pbase; ) {
                 if ((unsigned int)(pfmt-fmt)>=sizeof(fmt)-1) break;
+				if (*pbase == '/' || *pbase=='\\')
+				{
+					strncpy(vob_base, fmt, pfmt-fmt);
+					vob_base[pfmt-fmt]=0;
+					mkdir(vob_base, 0777);
+				}
                 if (!strncmp(pbase, "[label]", 7)) { //use the label to generate filename
                     if (!psi) {
                         fprintf(stderr, "Error: Couldn't generate name based on label\n");
