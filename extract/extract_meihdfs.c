@@ -47,13 +47,16 @@
 #ifndef O_BINARY
 #define O_BINARY 0
 #endif
+#ifdef WIN32
+#define mkdir(x,y) mkdir(x)
+#endif
 
 
 int search_hdr(int fdd, off64_t *offset)
 {
 	char buffer[32];
 
-	for (*offset=0; lseek64(fdd, *offset, SEEK_SET)!=(off64_t)-1; *offset+=0x100000)
+	for (*offset=0; lseek64(fdd, *offset, SEEK_SET)!=(off64_t)-1; *offset+=0x10000)
 	{
 		if(read(fdd, buffer, sizeof(buffer))!=sizeof(buffer))
 		{
@@ -81,7 +84,7 @@ int dump_file(int fdd, off64_t start, inode *inode, char *outfile)
 	int r, j, size;
 	char buffer[ASIZE];
 
-	if ((fdf = open(outfile, O_WRONLY|O_CREAT|O_TRUNC|O_BINARY, 0666)) == -1)
+	if ((fdf = open(outfile, O_WRONLY|O_CREAT|O_TRUNC|O_BINARY|O_LARGEFILE, 0666)) == -1)
 	{
 		fprintf (stderr, "Cannot create file %s: %s\n", outfile, strerror(errno));
 		return -1;
@@ -131,12 +134,14 @@ int dump_file(int fdd, off64_t start, inode *inode, char *outfile)
 
 #define INODE_OFFSET(tbl,idx) \
 	(((off64_t)tbl[idx/ITBL_SZ].entries[idx%ITBL_SZ].hoffset<<32)+tbl[idx/ITBL_SZ].entries[idx%ITBL_SZ].offset)
-#define ITABLES	2
+#define ITABLES	6
 
 int read_itbl(int fdd, off64_t start, itbl *itble)
 {
 	/* I don't know yet how they can be found, so they are just hardcoded atm */
-	off64_t itbl_offsets[] = {ITBL_START, ITBL_START+0xF000};
+	off64_t itbl_offsets[] = {
+		ITBL_START, ITBL_START+0x1000, ITBL_START+0x2000, 
+		ITBL_START+0xF000, ITBL_START+0x10000, ITBL_START+0x11000};
 	int i;
 
 	/* Read INODE directories (don't know how they are referenced yet :( ) */
@@ -153,82 +158,94 @@ int read_itbl(int fdd, off64_t start, itbl *itble)
 	return 0;
 }
 
-int dump_dir(int fdd, off64_t start, itbl *itble, directory *dir, char *outdir)
+int dump_dir(int fdd, off64_t start, off64_t dir_offset, itbl *itble, directory *dir, char *outdir)
 {
-	int i;
+	int i, j, page_len;
 	char file[PATH_MAX], buffer[ISIZE];
 	directory *idir;
 	inode *inod;
 	off64_t offset;
 	ssize_t rd=-1;
 	struct utimbuf utb={0};
+    dir_page *page, lpage;
 
-	for (i=0; i<dir->entries_num; i++)
-	{
-		/* Skip deleted entries */
-		if (dir->entries[i].inode_id == -1) continue;
+    page = (dir_page*)&dir->d7;
+    for (j=0, page_len=DIR_ENTRIES_FIRST; j<dir->item_len; j++)
+    {
+        if (j)
+        {
+            /* Seek to next directory entry */
+    		if (lseek64(fdd, (offset = dir_offset + j * ISIZE), SEEK_SET) == (off64_t)-1 ||
+    			(rd=read(fdd, &lpage, sizeof(lpage))) != sizeof(lpage))
+    		{
+    			fprintf (stderr, "Cannot read directory page %d @%10llX [rd=%d]: %s\n", 
+    				j, offset, rd, strerror(errno));
+    			return -1;
+    		}
+            page=&lpage; page_len=DIR_ENTRIES_OTHER;
+        }
+    	for (i=0; i<page_len; i++)
+	    {
+    		/* Skip deleted entries */
+    		if (!page->entries[i].inode_id || page->entries[i].inode_id == -1) continue;
 
-		/* Seek to given INODE */
-		if (lseek64(fdd, (offset = start + INODE_OFFSET(itble,dir->entries[i].inode_id) * ISIZE),
-			 SEEK_SET) == (off64_t)-1 ||
-			(rd=read(fdd, buffer, sizeof(buffer))) != sizeof(buffer))
-		{
-			fprintf (stderr, "Dir entry %d: Cannot read INODE %d @%10llX [rd=%d]: %s\n", 
-				i, dir->entries[i].inode_id, offset, rd, strerror(errno));
-			return -1;
-		}
+    		/* Seek to given INODE */
+    		if (lseek64(fdd, (offset = start + INODE_OFFSET(itble,page->entries[i].inode_id) * ISIZE),
+    			 SEEK_SET) == (off64_t)-1 ||
+    			(rd=read(fdd, buffer, sizeof(buffer))) != sizeof(buffer))
+    		{
+    			fprintf (stderr, "Dir entry %d: Cannot read INODE %d @%10llX [rd=%d]: %s\n", 
+    				i, page->entries[i].inode_id, offset, rd, strerror(errno));
+    			return -1;
+    		}
 
-		sprintf(file, "%s/%s", outdir, dir->entries[i].filename);
+    		sprintf(file, "%s/%s", outdir, page->entries[i].filename);
 
-		/* Dump inode to filesystem */
-		switch (dir->entries[i].type)
-		{
-		case TYPE_FILE:
-			inod = (inode*)buffer;
-			if (inod->magic != INODE_MAGIC)
-			{
-				fprintf (stderr, "Dir entry %d: INODE %d is not a file inode (magic=%08X)\n", 
-					i, dir->entries[i].inode_id, inod->magic);
-				return -1;
-			}
-			if (!inod->runs[0].start)
-			{
-				itbl itbl1[ITABLES]={0};
-				int j;
+    		/* Dump inode to filesystem */
+    		switch (page->entries[i].type)
+    		{
+    		case TYPE_FILE:
+    			inod = (inode*)buffer;
+    			if (inod->magic != INODE_MAGIC)
+    			{
+    				fprintf (stderr, "Dir entry %d: INODE %d is not a file inode (magic=%08X)\n", 
+    					i, page->entries[i].inode_id, inod->magic);
+    				return -1;
+    			}
+    			if (!inod->runs[0].start)
+    			{
+    				itbl itbl1[ITABLES]={0};
+    				int j;
 
-				// This is an incomplete inode search backup inode tables if there are other inode ptrs in there
-				for (j=1; read_itbl(fdd, start + j*(off64_t)GSIZE*(off64_t)ASIZE, itbl1)>=0; j++)
-				{
-					if (INODE_OFFSET(itbl1,dir->entries[i].inode_id) != INODE_OFFSET(itble,dir->entries[i].inode_id))
-					{
-						if (lseek64(fdd, (offset = start + INODE_OFFSET(itbl1,dir->entries[i].inode_id) * ISIZE), 
-							SEEK_SET) != (off64_t)-1 &&
-							read(fdd, buffer, sizeof(buffer)) == sizeof(buffer) && inod->runs[0].start)
-							break;
-					}
-				}
-			}
-			dump_file(fdd, start, inod, file);
-			utb.actime=utb.modtime=inod->time1 + TIME_OFFSET;
-			break;
-		case TYPE_DIRECTORY:
-			idir = (directory*)buffer;
-			if (idir->magic != DIRECTORY_MAGIC)
-			{
-				fprintf (stderr, "Dir entry %d: INODE %d is not a directory (magic=%08X)\n", i, dir->entries[i].inode_id, idir->magic);
-				return -1;
-			}
-#ifdef _WIN32
-			mkdir(file);
-#else
-			mkdir(file, 0775);
-#endif
-			dump_dir(fdd, start, itble, idir, file);
-			utb.actime=utb.modtime=idir->time1 + TIME_OFFSET;
-			break;
-		}
-		utime(file, &utb);
-
+	    			// This is an incomplete inode search backup inode tables if there are other inode ptrs in there
+    				for (j=1; read_itbl(fdd, start + j*(off64_t)GSIZE*(off64_t)ASIZE, itbl1)>=0; j++)
+    				{
+    					if (INODE_OFFSET(itbl1,page->entries[i].inode_id) != INODE_OFFSET(itble,page->entries[i].inode_id))
+    					{
+    						if (lseek64(fdd, (offset = start + INODE_OFFSET(itbl1,page->entries[i].inode_id) * ISIZE), 
+	    						SEEK_SET) != (off64_t)-1 &&
+    							read(fdd, buffer, sizeof(buffer)) == sizeof(buffer) && inod->runs[0].start)
+	    						break;
+    					}
+    				}
+    			}
+    			dump_file(fdd, start, inod, file);
+    			utb.actime=utb.modtime=inod->time1 + TIME_OFFSET;
+    			break;
+    		case TYPE_DIRECTORY:
+    			idir = (directory*)buffer;
+    			if (idir->magic != DIRECTORY_MAGIC)
+    			{
+    				fprintf (stderr, "Dir entry %d: INODE %d is not a directory (magic=%08X)\n", i, dir->entries[i].inode_id, idir->magic);
+    				return -1;
+    			}
+    			mkdir(file,0775);
+    			dump_dir(fdd, start, offset, itble, idir, file);
+    			utb.actime=utb.modtime=idir->time1 + TIME_OFFSET;
+    			break;
+    		}
+    		utime(file, &utb);
+        }
 	}
 	return 0;
 }
@@ -241,7 +258,7 @@ int main(int argc, char **argv)
 	directory root;
 	int ret;
 
-	printf ("extract_meihdfs V1.2 - (c) leecher@dose.0wnz.at, 2015\n\n");
+	printf ("extract_meihdfs V1.3 - (c) leecher@dose.0wnz.at, 2015\n\n");
 	if (argc<3)
 	{
 		printf ("Usage: %s <Image> <Output dir>\n", argv[0]);
@@ -277,7 +294,7 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	ret = dump_dir(fdd, start, itbl, &root, argv[2]);
+	ret = dump_dir(fdd, start, offset, itbl, &root, argv[2]);
 	close(fdd);
 	return ret;
 }

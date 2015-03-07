@@ -51,7 +51,8 @@ typedef struct block_run {
 #define MPEG_MAGIC	0xBA010000
 
 #define INODE_RUNS 0x500	// Actually computed from ISIZE
-#define ITBL_SZ    0x3FE	// Number of inodes in one table
+#define ITBL_SZ    0x154	// Number of inodes in one table
+
 
 typedef struct inode {
     uint32 generation;	// Ok, not sure what EXACTLY that is, but it DOES match on all stuff done last ... AND it's in superblock.
@@ -85,7 +86,7 @@ typedef struct {
 
 typedef struct {
 	uint32 generation;
-	uint32 magic;	// For me it is always 173C, but I don't know if this is variable or magic
+	uint32 i0;
 	uint32 i1;
 	uint32 i2;
 	itbl_entry entries[ITBL_SZ];	// Inode list
@@ -114,6 +115,11 @@ typedef struct dir_entry {
 //#define DIR_BEFORE_ENTRIES 31*8	// leecher: for me it is 50
 #define DIR_BEFORE_ENTRIES 50*8
 
+typedef struct dir_page {
+    uint16 d7[DIR_BEFORE_ENTRIES];
+    dir_entry entries[DIR_ENTRIES_OTHER];
+} dir_page;
+
 typedef struct directory {
     uint32 generation;
     uint32 level;	// 0 - Root, 1 - Subdirectory
@@ -134,7 +140,6 @@ typedef struct directory {
     uint32 nothing[51];	// 0
 
     uint16 d7[DIR_BEFORE_ENTRIES];	// Not sure what this is ; every ISIZE block of directory after the first starts directly with this
-
     dir_entry entries[DIR_ENTRIES_FIRST];
 } directory;
 
