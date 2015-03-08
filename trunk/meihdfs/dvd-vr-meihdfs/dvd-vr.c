@@ -85,7 +85,8 @@ Requirements:
 #include <utime.h>
 
 #ifdef MINGW
-#include <winsock.h>
+#define HAVE_SYS_PARAM_H
+#include "byteswap.h"
 #define gmtime_r(x,y) (*y=*gmtime(x))
 #else
 #include <netinet/in.h>
@@ -493,6 +494,7 @@ p_program_attr_t* ifo_program_attrs;
 
 #define DVD_SECTOR_SIZE 2048
 
+#pragma pack(1)
 typedef struct {
     struct {
         /* Suffix numbers are decimal offsets */
@@ -580,6 +582,7 @@ typedef struct  {
     uint16_t first_prog_id;   /* ID of first program in this program set */
     char     data3[6];
 } PACKED psi_t;
+#pragma pack()
 
 static const char* parse_txt_encoding(uint8_t txt_encoding)
 {
