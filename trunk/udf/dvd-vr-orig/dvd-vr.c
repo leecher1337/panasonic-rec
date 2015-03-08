@@ -54,11 +54,15 @@ Requirements:
 
     gcc >= 2.95
     glibc >= 2.3.3 on linux
-    Tested on linux, CYGWIN and Mac OS X
+    Tested on linux, MINGW and Mac OS X
 */
 
 #define _GNU_SOURCE           /* for posix_fadvise(), futimes() */
 #define _FILE_OFFSET_BITS 64  /* for implicit large file support */
+#define __USE_FILE_OFFSET64
+#define _LARGEFILE64_SOURCE
+#define __USE_MINGW_ANSI_STDIO 1
+#define __STDC_FORMAT_MACROS 1
 
 #include <inttypes.h>
 #include <stdbool.h>
@@ -79,6 +83,15 @@ Requirements:
 #include <sys/time.h>
 #include <errno.h>
 #include <limits.h>
+#include <utime.h>
+
+#ifdef MINGW
+#define HAVE_SYS_PARAM_H
+#include "byteswap.h"
+#define gmtime_r(x,y) (*y=*gmtime(x))
+#else
+#include <netinet/in.h>
+#endif
 
 #if !defined(MB_LEN_MAX) || MB_LEN_MAX<16
 /* 1 char could be converted to 2 multibyte chars
@@ -110,7 +123,8 @@ Requirements:
 #define STATIC_ASSERT(e,m) enum { ASSERT_CONCAT(assert_line_, __LINE__) = 1/(!!(e)) }
 
 #if defined(__CYGWIN__) || defined(_WIN32) /* windos doesn't like : in filenames */
-#define TIMESTAMP_FMT "%F_%H-%M-%S"
+#define TIMESTAMP_FMT "%Y-%m-%d_%H-%M-%S"
+#define mkdir(x,y) mkdir(x)
 #else
 #define TIMESTAMP_FMT "%F_%T" /* keep : in filenames for backward compat */
 #endif
@@ -118,12 +132,16 @@ const char* base_name = TIMESTAMP_FMT;
 
 FILE* stdinfo; /* Where we write disc info */
 
-#include <langinfo.h>
 #ifdef HAVE_ICONV
 #include <iconv.h>
+#include <langinfo.h>
+const char* sys_charset;
+#endif
+
+#ifndef O_BINARY
+#define O_BINARY 0
 #endif
 const char* disc_charset;
-const char* sys_charset;
 
 /*********************************************************************************
  *                          support routines
@@ -209,9 +227,9 @@ void percent_display(percent_control_t percent_control, unsigned int percent, in
    to the specified broken down time */
 static int touch(const char* filename, struct tm* tm)
 {
-    time_t ut = mktime(tm);
-    struct timeval tv[2]={ {.tv_sec=ut, .tv_usec=0}, {.tv_sec=ut, .tv_usec=0} };
-    return utimes(filename, tv);
+	struct utimbuf utb;
+	utb.actime=utb.modtime=mktime(tm);
+    return utime(filename, &utb);
 }
 
 typedef void (*process_func_t)(uint8_t* buf, unsigned int bs, void* context);
@@ -352,7 +370,7 @@ static int stream_data(int src_fd, int dst_fd, uint32_t blocks, uint16_t block_s
         fprintf(stderr, "Error writing to DST [%s]\n", strerror(errno));
         return -2;
     }
-    offset = lseek(src_fd, blocks*block_size, SEEK_CUR); /* This won't seek head I presume */
+    offset = lseek(src_fd, (off_t)blocks*block_size, SEEK_CUR); /* This won't seek head I presume */
     if (offset == (off_t)-1) {
         fprintf(stderr, "Error seeking in src [%s]\n", strerror(errno));
         exit(EXIT_FAILURE);
@@ -368,6 +386,7 @@ static int stream_data(int src_fd, int dst_fd, uint32_t blocks, uint16_t block_s
 }
 #endif //MMAP_WRITE
 
+#ifdef HAVE_ICONV
 static const char* get_charset(void)
 {
     const char* codeset = nl_langinfo(CODESET);
@@ -403,6 +422,7 @@ static const char* get_charset(void)
 #endif
     return codeset;
 }
+#endif
 
 static bool text_convert(const char *src, size_t srclen, char *dst, size_t dstlen)
 {
@@ -415,8 +435,8 @@ static bool text_convert(const char *src, size_t srclen, char *dst, size_t dstle
                 ret=true;
             }
         } else {
-            fprintf(stderr, "Error converting text from %s to %s\n",
-                    disc_charset, sys_charset);
+			strncpy(dst, src, dstlen<srclen+1?dstlen:srclen+1);
+			ret=true;
         }
         iconv_close (cd);
     } else {
@@ -424,9 +444,9 @@ static bool text_convert(const char *src, size_t srclen, char *dst, size_t dstle
                 disc_charset, sys_charset);
     }
 #else
-    /* avoid warnings (__attribute__ ((unused)) is too verbose/non standard) */
-    (void)src; (void)dst; (void)srclen; (void)dstlen;
-    fprintf(stderr, "Error converting text. libiconv missing\n");
+	/* Just do not convert */
+	strncpy(dst, src, dstlen<srclen+1?dstlen:srclen+1);
+	ret=true;
 #endif
     return ret;
 }
@@ -470,7 +490,6 @@ p_program_attr_t* ifo_program_attrs;
 #endif
 
 /* DVD structures are in network byte order (big endian) */
-#include <netinet/in.h>
 #undef NTOHS
 #undef NTOHL
 #define NTOHS(x) x=ntohs(x) /* 16 bit */
@@ -478,6 +497,7 @@ p_program_attr_t* ifo_program_attrs;
 
 #define DVD_SECTOR_SIZE 2048
 
+#pragma pack(1)
 typedef struct {
     struct {
         /* Suffix numbers are decimal offsets */
@@ -591,6 +611,7 @@ typedef struct  {
     uint16_t first_prog_id;   /* ID of first program in this program set */
     char     data3[6];
 } PACKED psi_t;
+#pragma pack()
 
 static const char* parse_txt_encoding(uint8_t txt_encoding)
 {
@@ -749,7 +770,7 @@ static bool parse_pgtm(pgtm_t pgtm, struct tm* tm)
         tm->tm_isdst=-1; /*Auto calc DST offset.*/
 
         char date_str[32];
-        strftime(date_str,sizeof(date_str),"%F %T",tm); //locale = %x %X
+        strftime(date_str,sizeof(date_str),"%Y-%m-%d %H:%M:%S",tm); //locale = %x %X
         fprintf(stdinfo, "date : %s\n",date_str);
         ret=true;
     } else {
@@ -1326,7 +1347,9 @@ static void get_options(int argc, char** argv)
 int main(int argc, char** argv)
 {
     setlocale(LC_ALL,"");
+#ifdef HAVE_ICONV
     sys_charset=get_charset();
+#endif
 
     get_options(argc, argv);
 
@@ -1336,7 +1359,7 @@ int main(int argc, char** argv)
         stdinfo = stdout; /* allow users to grep metadata etc. */
     }
 
-    int fd=open(ifo_name,O_RDONLY);
+    int fd=open(ifo_name,O_RDONLY|O_BINARY);
     if (fd == -1) {
         fprintf(stderr, "Error opening [%s] (%s)\n", ifo_name, strerror(errno));
         exit(EXIT_FAILURE);
@@ -1352,7 +1375,7 @@ int main(int argc, char** argv)
         exit(EXIT_FAILURE);
     }
 
-    uint32_t vmg_size = NTOHL(rtav_vmgi_ptr->mat.vmg_ea) + 1;
+    uint32_t vmg_size = ntohl(rtav_vmgi_ptr->mat.vmg_ea) + 1;
     if (munmap(rtav_vmgi_ptr, sizeof(rtav_vmgi_t)) !=0) {
         fprintf(stderr, "Failed to unmap ifo file (%s)\n", strerror(errno));
         exit(EXIT_FAILURE);
@@ -1365,7 +1388,7 @@ int main(int argc, char** argv)
 
     int vro_fd=-1;
     if (vro_name) {
-        vro_fd=open(vro_name,O_RDONLY);
+        vro_fd=open(vro_name,O_RDONLY|O_BINARY);
         if (vro_fd == -1) {
             fprintf(stderr, "Error opening [%s] (%s)\n", vro_name, strerror(errno));
             exit(EXIT_FAILURE);
@@ -1522,13 +1545,13 @@ int main(int argc, char** argv)
                 vob_fd=fileno(stdout);
             } else {
                 (void) snprintf(vob_name,sizeof(vob_name),"%s.vob",vob_base);
-                vob_fd=open(vob_name,O_WRONLY|O_CREAT|O_EXCL,0666);
+                vob_fd=open(vob_name,O_WRONLY|O_CREAT|O_EXCL|O_BINARY,0666);
                 if (vob_fd == -1 && errno == EEXIST && STREQ(base_name, TIMESTAMP_FMT)) {
                     /* JVC DVD recorder can generate duplicate timestamps at least :( */
                     /* FIXME: The second time ripping a disc will duplicate the first VOB with duplicate timestamp.
                     * Would need to scan all program info first and change format if any duplicate timestamps. */
                     (void) snprintf(vob_name,sizeof(vob_name),"%s#%03d.vob",vob_base, program+1);
-                    vob_fd=open(vob_name,O_WRONLY|O_CREAT|O_EXCL,0666);
+                    vob_fd=open(vob_name,O_WRONLY|O_CREAT|O_EXCL|O_BINARY,0666);
                 }
             }
             if (vob_fd == -1) {
