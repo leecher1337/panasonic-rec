@@ -1,0 +1,165 @@
+V0.1    16-02-2007
+
+    Initial release
+
+V0.2    29-03-2007
+
+    Portability fixes
+      Fixed up comments to support more compilers
+      Removed linux specific mremap() call
+      Don't try to use posix_fadvise() where not available
+      OS X also defines NTOH[LS], so undef first
+      Use utimes(filename) rather than futimes(fd)
+
+V0.3    18-06-2007
+
+    তন্ময় ভট্টাচার্য্য <tanmoy@mindspring.com>:
+      Fix random timestamp errors due to uninitialised tm_isdst.
+
+V0.4    14-11-2007
+
+    P@draigBrady.com:
+      Allow specifiying a particular program to process,
+      rather than all programs.
+    Aaron Binns <aaron@randomshiznat.com>:
+      Report 480x480 resolution discs, and do better reporting
+      for unknown resolutions.
+    Peter Van Hove <Peter@Smart-Projects.net>:
+      Support program label extraction with example code
+      and nero generated disc images.
+    Craig T. Snydal <ctsnydal@cantab.net>:
+    Rafa Couto <rafacouto@gmail.com>:
+      Generate globally unique filenames using timestamps,
+      rather than just program_1.vob, program_2.vob, ...
+
+V0.5    09-04-2008
+
+    Javier Sedano <Javier.Sedano@gmail.com>:
+      Tweaks to support the CYGWIN environment.
+    Masato Nunokawa <masato.nunokawa@gmail.com>:
+      Handle non ASCII encoded labels (e.g. in Japanese Kanji).
+      Provided disc images to test audio attribute and Kanji.
+      Mac OS X testing.
+    Kyosuke Tokoro <altair8800@livedoor.com>:
+      Provided Kanji encoded disc images to test.
+      Handle case where programs can have duplicate timestamps.
+      Tweaks to support compiler optimization.
+      Fix FSF postal address.
+    P@draigBrady.com:
+      Support 2 channel mono audio attribute.
+      Portability support for iconv() usage.
+      Don't exit if error opening a particular vob file.
+
+V0.5.1  10-04-2008
+
+    P@draigBrady.com:
+      Fix error pointed out by Kyosuke Tokoro where random
+       trailing characters could be printed after each title.
+
+V0.6    03-06-2008
+
+    P@draigBrady.com:
+      Support text encoding of ISO-8859-1 as well as SHIFT-JIS.
+      Support finding labels on discs that don't write full
+       info about programs contained in each program set.
+      Skip & report unreadable blocks rather than just exiting.
+      Fix crash when skipping already existing vob files.
+
+V0.7    21-07-2008
+
+    Kevin Veroneau <kveroneau@yourwinnipeg.net>:
+      Provided disc images and testing to better support
+      extracting labels from LG V1.1 discs which have unusual
+      identification of program titles.
+    Bruce Jerrick <bmj001@ippimail.com>:
+      Fix munmap() issue where memory wasn't unmapped correctly.
+      Rename structure members in code to aid understanding.
+    P@draigBrady.com:
+      Include a more efficient data streaming method, which
+      may be enabled in future.
+
+V0.8    04-11-2008
+
+    Bruce Jerrick <bmj001@ippimail.com>:
+      More decoding of the global disc info structure,
+      including outputting of the textual disc info fields.
+    P@draigBrady.com:
+      Support name#001.vob filename format with "-n name" option.
+      Support writing vob data to stdout with the "-n-" option.
+      Introduce the --help and --version long options.
+      Add more error checking to command line parameters.
+      Provided a make install target and a man page.
+
+V0.8.1  09-11-2008
+
+    P@draigBrady.com:
+      Fix a string comparison compile warning which was _not_
+       issued on linux with gcc 4.1.2 or Max OS X at least.
+
+V0.8.4  20-11-2008
+
+    তন্ময় ভট্টাচার্য্য <tanmoy@mindspring.com>:
+      Work around older gcc toolchains overwriting /dev/null
+      Change Makefile to use `cp -p` not `cp -a` for Mac OS X.
+
+V0.9    23-02-2009
+
+    Kyosuke Tokoro <altair8800@livedoor.com>:
+      Output program numbers so one can easily know what
+       to pass as the correct index to the -p option.
+    P@draigBrady.com:
+      Fix error reported by Antoni Kasper <agkasper@pacific.net.au>
+       where extracting VOBs starting after 4.2GB into a VRO file,
+       would actually extract video within the 4.2GB (2^32) range.
+      Remove compiler warnings on systems without iconv support.
+      Allow specifying CFLAGS parameter to `make`.
+      Modify video to apply aspect ratio from IFO index file.
+      Modify video to use more standard aspect ratio encoding.
+
+V0.9.1  25-02-2009
+
+    তন্ময় ভট্টাচার্য্য <tanmoy@mindspring.com>:
+      Fix compilation on Mac OS X (CHAR_BIT requires limits.h)
+
+V0.9.3  15-10-2009
+
+    P@draigBrady.com:
+      Identify the system charset better on cygwin 1.5 which
+       doesn't support the standard codset determination mechanism.
+       Reported by http://pythonlife.seesaa.net/
+      Identify and abort extracting CPRM encrypted discs.
+       Report and sample disc from Stephen Stewart <funaki2008@googlemail.com>
+      Don't override CC environment variable so that ccache, clang, etc. work
+
+V0.9.4  15-02-2010
+
+    Helen Buss <mythtv@hbuus.com>:
+      Fix compilation on cyqwin without libiconv (always include langinfo.h).
+      Report and provided sample disc image for CPRM misdetection.
+    Alexander Skwar <alexander@skwar.name>:
+      Add support for building Mac OS X universal binaries.
+    P@draigBrady.com:
+      Fix CPRM detection, which must be done per program rather than per disc.
+      Fix label (program set) identification on discs that indicate
+       programs other than the first in the set as the first program to play.
+       Report and sample disc from Markus Laker <markus@mnslaker.f9.co.uk>.
+      Added a "[label]" parameter to the --name option,
+       to generate (sanitized) file names based on the title, or label.
+
+V0.9.6  18-02-2010
+
+    P@draigBrady.com:
+      Fix compilation on Mac OS X. Reported by Eyal.
+      Suppress posix_fadvise warnings when writing to stdout.
+        Reported by Kyosuke Tokoro.
+
+V0.9.7  24-08-2010
+
+    P@draigBrady.com:
+      Identify partially encrypted programs.
+       Panasonic (sky) recorders were seen to leave 15s of video unscrambled.
+       Report and sample video from Colin Wall <colin.wall@clear.net.nz>.
+      Fix modification of Sequence Display Extensions in MPEG streams.
+       Creating inconsistent SDEs breaks gstreamer based players at least.
+       Report and sample video from Zhaohui Wang <carbon_60@yahoo.com>.
+      Fix strndup() which may have accessed out of bounds memory.
