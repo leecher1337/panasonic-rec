@@ -1,0 +1,5 @@
+SYNOPSIS:           A program to identify and extract recordings from DVD-VR files
+BUILD:              make
+RUN:                ./dvd-vr --help
+INSTALL in $PATH:   sudo make install
+INSTALL in package: make install PREFIX=/usr DESTDIR=$RPM_BUILD_ROOT
