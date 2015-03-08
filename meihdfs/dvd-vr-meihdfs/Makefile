@@ -10,7 +10,7 @@ SYS := $(shell gcc -dumpmachine)
 ifneq (, $(findstring mingw, $(SYS)))
 CC := gcc
 override CFLAGS+=-DMINGW -Imingw/
-override LDFLAGS+=-lwsock32 mingw/sys/mman.c
+override LDFLAGS+=mingw/sys/mman.c
 endif
 
 # Use `make DEBUG=1` to build debugging version
