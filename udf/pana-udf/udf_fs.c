@@ -2,6 +2,8 @@
   $Id: udf_fs.c,v 1.22 2008/04/18 16:02:10 karl Exp $
 
   Copyright (C) 2005, 2006, 2008 Rocky Bernstein <rocky@gnu.org>
+  Adapted for Panasonic DVR and bugs fixed
+  Copyright (C) 2015 <leecher@dose.0wnz.at>
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -61,16 +63,8 @@
    have to come *before* #include <cdio/ecma_167.h> which sets 
    #defines for these.
 */
-/*
-const char VSD_STD_ID_BEA01[] = {'B', 'E', 'A', '0', '1'};
-const char VSD_STD_ID_BOOT2[] = {'B', 'O', 'O', 'T', '2'};
-const char VSD_STD_ID_CD001[] = {'C', 'D', '0', '0', '1'};
-const char VSD_STD_ID_CDW01[] = {'C', 'D', 'W', '0', '2'};
-const char VSD_STD_ID_NSR03[] = {'N', 'S', 'R', '0', '3'};
-const char VSD_STD_ID_TEA01[] = {'T', 'E', 'A', '0', '1'};
-*/
 
-#include <cdio/bytesex.h>
+#include "cdio/bytesex.h"
 #include "udf_private.h"
 #include "udf_fs.h"
 
@@ -250,14 +244,14 @@ udf_fopen(udf_dirent_t *p_udf_root, const char *psz_name)
 	   correct? 
        */
       udf_dirent_t *p_udf_dirent = 
-	udf_new_dirent(&p_udf_root->fe, p_udf_root->p_udf,
+	udf_new_dirent(p_udf_root->fe, p_udf_root->p_udf,
 		       p_udf_root->psz_name, p_udf_root->b_dir, 
 		       p_udf_root->b_parent);
       p_udf_file = udf_ff_traverse(p_udf_dirent, psz_token);
       udf_dirent_free(p_udf_dirent);
     }
     else if ( 0 == strncmp("/", psz_name, sizeof("/")) ) {
-      return udf_new_dirent(&p_udf_root->fe, p_udf_root->p_udf,
+      return udf_new_dirent(p_udf_root->fe, p_udf_root->p_udf,
 			    p_udf_root->psz_name, p_udf_root->b_dir, 
 			    p_udf_root->b_parent);
     }
@@ -291,19 +285,25 @@ udf_new_dirent(udf_file_entry_t *p_udf_fe, udf_t *p_udf,
 {
   const unsigned int i_alloc_size = p_udf_fe->i_alloc_descs
     + p_udf_fe->i_extended_attr;
-  
-  udf_dirent_t *p_udf_dirent = (udf_dirent_t *) 
-    calloc(1, sizeof(udf_dirent_t) + i_alloc_size);
+  udf_dirent_t *p_udf_dirent = (udf_dirent_t *)
+    calloc(1, sizeof(udf_dirent_t));
+
   if (!p_udf_dirent) return NULL;
-  
+  if (!(p_udf_dirent->fe = calloc(1, 
+    sizeof(udf_file_entry_t) + i_alloc_size)))
+  {
+    free(p_udf_dirent);
+    return NULL;
+  }
   p_udf_dirent->psz_name     = strdup(psz_name);
   p_udf_dirent->b_dir        = b_dir;
   p_udf_dirent->b_parent     = b_parent;
   p_udf_dirent->p_udf        = p_udf;
   p_udf_dirent->i_part_start = p_udf->i_part_start;
   p_udf_dirent->dir_left     = uint64_from_le(p_udf_fe->info_len); 
+  p_udf_dirent->i_fe_alloc_size = i_alloc_size;
 
-  memcpy(&(p_udf_dirent->fe), p_udf_fe, 
+  memcpy(p_udf_dirent->fe, p_udf_fe, 
 	 sizeof(udf_file_entry_t) + i_alloc_size);
   udf_get_lba( p_udf_fe, &(p_udf_dirent->i_loc), 
 	       &(p_udf_dirent->i_loc_end) );
@@ -320,15 +320,17 @@ udf_read_sectors (const udf_t *p_udf, void *ptr, lsn_t i_start,
 {
   driver_return_code_t ret;
   long int i_read;
-  long int i_byte_offset;
+  uint64_t i_byte_offset;
   
   if (!p_udf) return 0;
-  i_byte_offset = (i_start * UDF_BLOCKSIZE);
+  i_byte_offset = ((uint64_t)i_start * UDF_BLOCKSIZE);
 
     ret = lseek64 (p_udf->stream, i_byte_offset, SEEK_SET);
-    if (DRIVER_OP_SUCCESS != ret) return ret;
-    i_read = read (p_udf->stream, ptr, UDF_BLOCKSIZE * i_blocks);
-    if (i_read) return DRIVER_OP_SUCCESS;
+    if (ret != (off64_t)-1)
+    {
+      i_read = read (p_udf->stream, ptr, UDF_BLOCKSIZE * i_blocks);
+      if (i_read) return DRIVER_OP_SUCCESS;
+    }
     return DRIVER_OP_ERROR;
 }
 
@@ -345,7 +347,7 @@ search_hdr(int fdd, uint32_t *part_start)
       fprintf(stderr, "Read error @%10llX: %s\n", offset, strerror(errno));
       return -1;
     }
-    printf ("\rSearching UFS filesystem header...%10llX", offset);
+    printf ("\rSearching UDF filesystem header...%10llX", offset);
     fflush(stdout);
     if (!udf_checktag(&tag, TAGID_FSD))
     {
@@ -371,7 +373,7 @@ udf_open (const char *psz_path)
   udf_t *p_udf = (udf_t *) calloc(1, sizeof(udf_t)) ;
   uint8_t data[UDF_BLOCKSIZE];
 
-  if (!p_udf)
+  if (p_udf)
   {
     p_udf->stream = open( psz_path, O_RDONLY|O_LARGEFILE|O_BINARY );
     if (p_udf->stream)
@@ -526,15 +528,27 @@ udf_readdir(udf_dirent_t *p_udf_dirent)
 
       {
 	const unsigned int i_len = p_udf_dirent->fid->i_file_id;
+    unsigned int i_alloc_size;
 	uint8_t data[UDF_BLOCKSIZE] = {0};
 	udf_file_entry_t *p_udf_fe = (udf_file_entry_t *) &data;
 
-	udf_read_sectors(p_udf, p_udf_fe, p_udf->i_part_start 
-			 + p_udf_dirent->fid->icb.loc.lba, 1);
-      
-	memcpy(&(p_udf_dirent->fe), p_udf_fe, 
-	       sizeof(udf_file_entry_t) + p_udf_fe->i_alloc_descs 
-	       + p_udf_fe->i_extended_attr );
+	if (udf_read_sectors(p_udf, p_udf_fe, p_udf->i_part_start 
+			 + p_udf_dirent->fid->icb.loc.lba, 1) != DRIVER_OP_SUCCESS)
+		return NULL;
+
+    // Loop over 0byte files
+	if (!p_udf_fe->i_alloc_descs) return udf_readdir(p_udf_dirent);
+
+	i_alloc_size = p_udf_fe->i_alloc_descs + p_udf_fe->i_extended_attr;
+	if (p_udf_dirent->i_fe_alloc_size < i_alloc_size)
+	{
+		udf_file_entry_t *p_udf_new_fe  = realloc(p_udf_dirent->fe, sizeof(udf_file_entry_t) + i_alloc_size);
+		if (!p_udf_new_fe) return NULL;
+		p_udf_dirent->fe = p_udf_new_fe;
+		p_udf_dirent->i_fe_alloc_size = i_alloc_size;
+	}
+	memcpy(p_udf_dirent->fe, p_udf_fe, 
+	       sizeof(udf_file_entry_t) + i_alloc_size);
 
 	if (strlen(p_udf_dirent->psz_name) < i_len) 
 	  p_udf_dirent->psz_name = (char *)
@@ -543,6 +557,7 @@ udf_readdir(udf_dirent_t *p_udf_dirent)
 	unicode16_decode(p_udf_dirent->fid->imp_use 
 			 + p_udf_dirent->fid->i_imp_use, 
 			 i_len, p_udf_dirent->psz_name);
+	p_udf_dirent->i_position=0;
       }
       return p_udf_dirent;
     }
@@ -559,6 +574,7 @@ udf_dirent_free(udf_dirent_t *p_udf_dirent)
     p_udf_dirent->fid = NULL;
     free_and_null(p_udf_dirent->psz_name);
     free_and_null(p_udf_dirent->sector);
+    free_and_null(p_udf_dirent->fe);
     free_and_null(p_udf_dirent);
   }
   return true;

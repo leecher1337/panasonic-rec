@@ -49,7 +49,7 @@
 #endif
 
 #include "udf_private.h"
-#include <cdio/udf.h>
+#include "cdio/udf.h"
 
 /**
    Imagine the below enum values as #define'd or constant values
@@ -217,7 +217,7 @@ udf_get_modification_time(const udf_dirent_t *p_udf_dirent)
   if (p_udf_dirent) {
     time_t ret_time;
     long int usec;
-    udf_stamp_to_time(&ret_time, &usec, p_udf_dirent->fe.modification_time);
+    udf_stamp_to_time(&ret_time, &usec, p_udf_dirent->fe->modification_time);
     return ret_time;
   }
   return 0;
@@ -232,7 +232,7 @@ udf_get_access_time(const udf_dirent_t *p_udf_dirent)
   if (p_udf_dirent) {
     time_t ret_time;
     long int usec;
-    udf_stamp_to_time(&ret_time, &usec, p_udf_dirent->fe.access_time);
+    udf_stamp_to_time(&ret_time, &usec, p_udf_dirent->fe->access_time);
     return ret_time;
   }
   return 0;
@@ -247,7 +247,7 @@ udf_get_attribute_time(const udf_dirent_t *p_udf_dirent)
   if (p_udf_dirent) {
     time_t ret_time;
     long int usec;
-    udf_stamp_to_time(&ret_time, &usec, p_udf_dirent->fe.attribute_time);
+    udf_stamp_to_time(&ret_time, &usec, p_udf_dirent->fe->attribute_time);
     return ret_time;
   }
   return 0;

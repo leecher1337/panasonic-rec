@@ -28,9 +28,7 @@
 #ifndef UDF_H
 #define UDF_H 
 
-#include <cdio/cdio.h>
-#include <cdio/ecma_167.h>
-#include <cdio/posix.h>
+#include "ecma_167.h"
 
 typedef uint16_t partition_num_t;
 
@@ -136,7 +134,7 @@ extern "C" {
 }
 #endif /* __cplusplus */
 
-#include <cdio/udf_time.h>
-#include <cdio/udf_file.h>
+#include "udf_time.h"
+#include "udf_file.h"
 
 #endif /*UDF_H*/

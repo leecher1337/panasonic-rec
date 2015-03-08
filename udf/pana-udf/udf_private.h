@@ -24,14 +24,13 @@
 #include "config.h"
 #endif
 
-#include <cdio/types.h>
-#include <cdio/ecma_167.h>
+#include "cdio/types.h"
+#include "cdio/ecma_167.h"
 #include "cdio/udf.h"
 
 /* Implementation of opaque types */
 
 struct udf_s {
-  ssize_t               i_position; /* Position in file if positive. */
   int                   stream;  /* Stream pointer if stream */
   uint32_t              i_part_start; /* start of Partition Descriptor */
   uint32_t              fsd_offset;   /* lba of fileset descriptor */
@@ -49,10 +48,12 @@ struct udf_dirent_s
   uint32_t           i_loc, i_loc_end;
   uint64_t           dir_left;
   uint8_t           *sector;
+  uint64_t          i_position; /* Position in file if positive. */
   udf_fileid_desc_t *fid;
 
  /* This field has to come last because it is variable in length. */
-  udf_file_entry_t   fe;
+  uint32_t			 i_fe_alloc_size;
+  udf_file_entry_t   *fe;
 };
 
 bool udf_get_lba(const udf_file_entry_t *p_udf_fe, 

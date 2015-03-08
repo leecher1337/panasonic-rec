@@ -87,7 +87,7 @@ extern "C" {
     If count is zero, read() returns zero and has no other results. If
     count is greater than SSIZE_MAX, the result is unspecified.
   */
-  ssize_t udf_read_block(const udf_dirent_t *p_udf_dirent, 
+  ssize_t udf_read_block(udf_dirent_t *p_udf_dirent, 
 			 void * buf, size_t count);
 
   /**

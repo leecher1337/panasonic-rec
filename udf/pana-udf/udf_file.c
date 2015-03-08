@@ -2,6 +2,8 @@
   $Id: udf_file.c,v 1.14 2008/04/18 16:02:10 karl Exp $
 
   Copyright (C) 2005, 2006, 2008 Rocky Bernstein <rocky@gnu.org>
+  Adapted for Panasonic DVR and bugs fixed
+  Copyright (C) 2015 <leecher@dose.0wnz.at>
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -18,7 +20,8 @@
 */
 /* Access routines */
 
-#include <cdio/bytesex.h>
+#define __USE_FILE_OFFSET64
+#include "cdio/bytesex.h"
 #include "udf_private.h"
 #include "udf_fs.h"
 
@@ -51,7 +54,7 @@ udf_get_file_entry(const udf_dirent_t *p_udf_dirent,
 		   /*out*/ udf_file_entry_t *p_udf_fe)
 {
   if (!p_udf_dirent) return false;
-  memcpy(p_udf_fe, &p_udf_dirent->fe, sizeof(udf_file_entry_t));
+  memcpy(p_udf_fe, p_udf_dirent->fe, sizeof(udf_file_entry_t));
   return true;
 }
 
@@ -78,7 +81,7 @@ bool udf_get_fileid_descriptor(const udf_dirent_t *p_udf_dirent,
 uint16_t udf_get_link_count(const udf_dirent_t *p_udf_dirent) 
 {
   if (p_udf_dirent) {
-    return uint16_from_le(p_udf_dirent->fe.link_count);
+    return uint16_from_le(p_udf_dirent->fe->link_count);
   }
   return 0; /* Error. Non-error case handled above. */
 }
@@ -89,7 +92,7 @@ uint16_t udf_get_link_count(const udf_dirent_t *p_udf_dirent)
 uint64_t udf_get_file_length(const udf_dirent_t *p_udf_dirent) 
 {
   if (p_udf_dirent) {
-    return uint64_from_le(p_udf_dirent->fe.info_len);
+    return uint64_from_le(p_udf_dirent->fe->info_len);
   }
   return 2147483647L; /* Error. Non-error case handled above. */
 }
@@ -113,7 +116,7 @@ offset_to_lba(const udf_dirent_t *p_udf_dirent, off_t i_offset,
 {
   udf_t *p_udf = p_udf_dirent->p_udf;
   const udf_file_entry_t *p_udf_fe = (udf_file_entry_t *) 
-    &p_udf_dirent->fe;
+    p_udf_dirent->fe;
   const udf_icbtag_t *p_icb_tag = &p_udf_fe->icb_tag;
   const uint16_t strat_type= uint16_from_le(p_icb_tag->strat_type);
   
@@ -222,14 +225,14 @@ offset_to_lba(const udf_dirent_t *p_udf_dirent, off_t i_offset,
   the specific error code.
 */
 ssize_t
-udf_read_block(const udf_dirent_t *p_udf_dirent, void * buf, size_t count)
+udf_read_block(udf_dirent_t *p_udf_dirent, void * buf, size_t count)
 {
   if (count == 0) return 0;
   else {
     driver_return_code_t ret;
     uint32_t i_max_size=0;
     udf_t *p_udf = p_udf_dirent->p_udf;
-    lba_t i_lba = offset_to_lba(p_udf_dirent, p_udf->i_position, &i_lba, 
+    lba_t i_lba = offset_to_lba(p_udf_dirent, p_udf_dirent->i_position, &i_lba, 
 				&i_max_size);
     if (i_lba != CDIO_INVALID_LBA) {
       uint32_t i_max_blocks = CEILING(i_max_size, UDF_BLOCKSIZE);
@@ -240,7 +243,7 @@ udf_read_block(const udf_dirent_t *p_udf_dirent, void * buf, size_t count)
       ret = udf_read_sectors(p_udf, buf, i_lba, count);
       if (DRIVER_OP_SUCCESS == ret) {
 	ssize_t i_read_len = MIN(i_max_size, count * UDF_BLOCKSIZE);
-	p_udf->i_position += i_read_len;
+	p_udf_dirent->i_position += i_read_len;
 	return i_read_len;
       }
       return ret;
