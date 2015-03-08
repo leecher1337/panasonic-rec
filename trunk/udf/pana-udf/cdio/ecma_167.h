@@ -52,7 +52,7 @@
 #ifndef _ECMA_167_H
 #define _ECMA_167_H 1
 
-#include <cdio/types.h>
+#include "types.h"
 
 /**
    Imagine the below enum values as \#define'd values rather than

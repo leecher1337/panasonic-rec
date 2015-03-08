@@ -33,7 +33,7 @@ extern "C" {
 
 #ifndef EXTERNAL_LIBCDIO_CONFIG_H
 #define EXTERNAL_LIBCDIO_CONFIG_H
-#include <cdio/cdio_config.h>
+#include "cdio_config.h"
 #endif
 
 #ifdef HAVE_SYS_TYPES_H
@@ -310,6 +310,11 @@ typedef uint8_t ubyte;
     CDIO_TRACK_FLAG_FOUR_CHANNEL_AUDIO = 0x08,  /**< 4 audio channels */
   CDIO_TRACK_FLAG_SCMS =		 0x10	/**< SCMS (5.29.2.7) */
 } cdio_track_flag;
+
+typedef enum  {
+  DRIVER_OP_SUCCESS = 0,
+  DRIVER_OP_ERROR = -1,
+} driver_return_code_t;
 
 #ifdef __cplusplus
 }

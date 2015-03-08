@@ -28,9 +28,8 @@
 #ifndef __CDIO_BYTESEX_H__
 #define __CDIO_BYTESEX_H__
 
-#include <cdio/types.h>
-#include <cdio/bytesex_asm.h>
-#include <cdio/logging.h>
+#include "types.h"
+#include "bytesex_asm.h"
 
 /** 16-bit big-endian to little-endian */
 #define UINT16_SWAP_LE_BE_C(val) ((uint16_t) ( \
