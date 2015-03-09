@@ -141,6 +141,9 @@ const char* sys_charset;
 #ifndef O_BINARY
 #define O_BINARY 0
 #endif
+#ifndef O_LARGEFILE
+#define O_LARGEFILE 0
+#endif
 const char* disc_charset;
 
 /*********************************************************************************
@@ -1359,7 +1362,7 @@ int main(int argc, char** argv)
         stdinfo = stdout; /* allow users to grep metadata etc. */
     }
 
-    int fd=open(ifo_name,O_RDONLY|O_BINARY);
+    int fd=open(ifo_name,O_RDONLY|O_BINARY|O_LARGEFILE);
     if (fd == -1) {
         fprintf(stderr, "Error opening [%s] (%s)\n", ifo_name, strerror(errno));
         exit(EXIT_FAILURE);
@@ -1388,7 +1391,7 @@ int main(int argc, char** argv)
 
     int vro_fd=-1;
     if (vro_name) {
-        vro_fd=open(vro_name,O_RDONLY|O_BINARY);
+        vro_fd=open(vro_name,O_RDONLY|O_BINARY|O_LARGEFILE);
         if (vro_fd == -1) {
             fprintf(stderr, "Error opening [%s] (%s)\n", vro_name, strerror(errno));
             exit(EXIT_FAILURE);
@@ -1545,13 +1548,13 @@ int main(int argc, char** argv)
                 vob_fd=fileno(stdout);
             } else {
                 (void) snprintf(vob_name,sizeof(vob_name),"%s.vob",vob_base);
-                vob_fd=open(vob_name,O_WRONLY|O_CREAT|O_EXCL|O_BINARY,0666);
+                vob_fd=open(vob_name,O_WRONLY|O_CREAT|O_EXCL|O_BINARY|O_LARGEFILE,0666);
                 if (vob_fd == -1 && errno == EEXIST && STREQ(base_name, TIMESTAMP_FMT)) {
                     /* JVC DVD recorder can generate duplicate timestamps at least :( */
                     /* FIXME: The second time ripping a disc will duplicate the first VOB with duplicate timestamp.
                     * Would need to scan all program info first and change format if any duplicate timestamps. */
                     (void) snprintf(vob_name,sizeof(vob_name),"%s#%03d.vob",vob_base, program+1);
-                    vob_fd=open(vob_name,O_WRONLY|O_CREAT|O_EXCL|O_BINARY,0666);
+                    vob_fd=open(vob_name,O_WRONLY|O_CREAT|O_EXCL|O_BINARY|O_LARGEFILE,0666);
                 }
             }
             if (vob_fd == -1) {
@@ -1596,7 +1599,7 @@ hexdump(vobu_map, sizeof(vobu_map_t));
         }
         vob_offset *= DVD_SECTOR_SIZE;
         if (vro_fd!=-1) {
-            if (lseek(vro_fd, vob_offset, SEEK_SET)==(off_t)-1) {
+            if (lseek64(vro_fd, vob_offset, SEEK_SET)==(off_t)-1) {
                 fprintf(stderr, "Error seeking within VRO [%s]\n", strerror(errno));
                 exit(EXIT_FAILURE);
             }
