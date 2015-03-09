@@ -323,7 +323,7 @@ udf_read_sectors (const udf_t *p_udf, void *ptr, lsn_t i_start,
   uint64_t i_byte_offset;
   
   if (!p_udf) return 0;
-  i_byte_offset = ((uint64_t)i_start * UDF_BLOCKSIZE);
+  i_byte_offset = ((uint64_t)i_start * (uint64_t)UDF_BLOCKSIZE);
 
     ret = lseek64 (p_udf->stream, i_byte_offset, SEEK_SET);
     if (ret != (off64_t)-1)

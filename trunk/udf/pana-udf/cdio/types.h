@@ -35,6 +35,7 @@ extern "C" {
 #define EXTERNAL_LIBCDIO_CONFIG_H
 #include "cdio_config.h"
 #endif
+#define _FILE_OFFSET_BITS 64
 
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
