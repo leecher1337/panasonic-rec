@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Panasonic-rec by leecher1337</title>
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+    <script src="javascripts/respond.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <!--[if lt IE 8]>
+    <link rel="stylesheet" href="stylesheets/ie.css">
+    <![endif]-->
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
+  </head>
+  <body>
+      <div id="header">
+        <nav>
+          <li class="fork"><a href="https://github.com/leecher1337/panasonic-rec">View On GitHub</a></li>
+          <li class="downloads"><a href="https://github.com/leecher1337/panasonic-rec/zipball/master">ZIP</a></li>
+          <li class="downloads"><a href="https://github.com/leecher1337/panasonic-rec/tarball/master">TAR</a></li>
+          <li class="title">DOWNLOADS</li>
+        </nav>
+      </div><!-- end header -->
+
+    <div class="wrapper">
+
+      <section>
+        <div id="title">
+          <h1>Panasonic-rec</h1>
+          <p>Recovery programs for MEIHDFS-V2.0 used by Panasonic DVR-Recorders</p>
+          <hr>
+          <span class="credits left">Project maintained by <a href="https://github.com/leecher1337">leecher1337</a></span>
+          <span class="credits right">Hosted on GitHub Pages &mdash; Theme by <a href="https://twitter.com/michigangraham">mattgraham</a></span>
+        </div>
+
+        <p>There seem to be at least 2 types of Filesystems in use on Panasonic DVR recorders:
+The oder ones use UDF, the newer ones seem to have a custom file system called
+MEIHDFS-V2.0. So if the harddisk in such a DVR-Recorder dies, it is
+difficult to recover data from it, because the filesystem is entirely
+undocumented and proprietary.
+But there may be hope! This tool is an attempt to parse the filesystem
+structures and extract the files.</p>
+
+<p>I made 2 different tools, one is for UDF variant and one for MEIHDFS2.</p>
+
+<h1>
+<a id="udf" class="anchor" href="#udf" aria-hidden="true"><span class="octicon octicon-link"></span></a>UDF</h1>
+
+<p>For further information on how to use it, please refer to the <a href="https://github.com/leecher1337/panasonic-rec/blob/master/udf/README.txt">README</a> file. </p>
+
+<p>For the impatient ones, assuming you have a disk image image.dd and a recovery destination directory f:\dump, just do:</p>
+
+<p><code>udf_dump image.dd f:\dump</code></p>
+
+<p>After successful extraction, you can do this to extract the programs:</p>
+
+<p><code>dvd-vr VR_MANGR.IFO VR_MOVIE.VRO</code></p>
+
+<p>Windows Binary: <a href="http://dose.0wnz.at/scripts/cpp/udf_dump.zip">udf_dump.zip</a>
+For Linux, just type make to compile each program.</p>
+
+<h1>
+<a id="meihdfs" class="anchor" href="#meihdfs" aria-hidden="true"><span class="octicon octicon-link"></span></a>MEIHDFS</h1>
+
+<p>For further information on how to use it and for technical details about the filesystem structure, please refer to the <a href="https://github.com/leecher1337/panasonic-rec/blob/master/meihdfs/README.txt">README</a> file. 
+For the impatient ones, assuming you have a disk image image.dd and a recovery destination directory f:\dump, just do:</p>
+
+<p><code>extract_meihdfs image.dd f:\dump</code></p>
+
+<p>After successful extraction, you can do this to extract the programs:</p>
+
+<p><code>for /r "F:\dump\DVD_RTAV\" %I in (*.VRO) do dvd-vr -n [ts]-[label] "%~dI%~pI%~nI.IFO" "%~I"</code></p>
+
+<p>Windows Binary: <a href="http://dose.0wnz.at/scripts/cpp/meihdfs.zip">meihdfs.zip</a>
+For Linux, just type make to compile each program.</p>
+
+<h1>
+<a id="other-recorders" class="anchor" href="#other-recorders" aria-hidden="true"><span class="octicon octicon-link"></span></a>Other Recorders</h1>
+
+<p>For Pioneer DVR recorders, you can have a look at my <a href="https://github.com/leecher1337/pioneer-rec/">pioneer-rec</a> project.</p>
+      </section>
+
+    </div>
+    <!--[if !IE]><script>fixScale(document);</script><![endif]-->
+    
+  </body>
+</html>
