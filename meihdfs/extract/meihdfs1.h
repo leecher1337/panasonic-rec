@@ -31,7 +31,8 @@
 #define ASIZE (BSIZE * BCNT)
 #define GSIZE 0x10000	// Every (GSIZE * BCNT * BSIZE), the superblock is repeated
 
-#define ITBL_START	(ASIZE + 0x6000)	// Start of INODE Table after superblock header
+#define ITBL_START	(ASIZE + 0x6000)	// Start of INODE Table after superblock header V2.0
+#define ITBL_START_21 (ASIZE + 0xB000)	// Start of INODE Table after superblock header V2.1
 
 #define TIME_OFFSET 315532800	// 1980-01-01 0:00:00
 
@@ -45,12 +46,14 @@ typedef struct block_run {
 } block_run;
 
 #define INODE_MAGIC				0x81C00001	// At least it LOOKS like magic
+#define INODE_MAGIC_21			0x81800001
 #define DIRECTORY_MAGIC			0x41C20001
+#define DIRECTORY_MAGIC_21		0x41C00001
 #define ROOTDIR_MAGIC 			0x41FF0001	// Magic of root directory
 
 #define MPEG_MAGIC	0xBA010000
 
-#define INODE_RUNS 0x500	// Actually computed from ISIZE
+#define INODE_RUNS 0x140	// Actually computed from ISIZE
 #define ITBL_SZ    0x154	// Number of inodes in one table
 
 
@@ -111,7 +114,7 @@ typedef struct dir_entry {
  */
 
 #define DIR_ENTRIES_FIRST  95	// since 420 to 1000
-#define DIR_ENTRIES_OTHER 103	// since 320 to 1000 ... actually, the last three looks always empty, but doesn't matter ...
+#define DIR_ENTRIES_OTHER 100	// since 320 to 1000 ... actually, the last three look always empty or are something different, so only 100 instead of 103 ...
 //#define DIR_BEFORE_ENTRIES 31*8	// leecher: for me it is 50
 #define DIR_BEFORE_ENTRIES 50*8
 
