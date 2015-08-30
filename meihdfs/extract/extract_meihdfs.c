@@ -54,7 +54,7 @@
 
 int search_hdr(int fdd, off64_t *offset)
 {
-	char buffer[32];
+	char buffer[512];
 
 	for (*offset=0; lseek64(fdd, *offset, SEEK_SET)!=(off64_t)-1; *offset+=0x10000)
 	{
@@ -73,6 +73,20 @@ int search_hdr(int fdd, off64_t *offset)
 	}
 	fprintf(stderr, "\nHeader could not be found!\n");
 	return -2;
+}
+
+int list_file(inode *inode, char *outfile)
+{
+	time_t ttime;
+	struct tm *btime;
+	off64_t fsize;
+
+	ttime = inode->time1 + TIME_OFFSET;
+	btime = gmtime(&ttime);
+	fsize = ((off64_t)inode->hsize << 32) + inode->size;	// Or are the higher bits of size elsewhere?
+	printf("%4i-%02i-%02i %02i:%02i:%02i %20lld %s\n", btime->tm_year + 1900, 
+		btime->tm_mon+1, btime->tm_mday, btime->tm_hour, 
+		btime->tm_min, btime->tm_sec, fsize, outfile);
 }
 
 int dump_file(int fdd, off64_t start, inode *inode, char *outfile)
@@ -108,7 +122,6 @@ int dump_file(int fdd, off64_t start, inode *inode, char *outfile)
 		for (size = inode->runs[j].len; size>0 && fsize>0; size -= BCNT * 4, written+=r)
 		{
 			r = (size > BCNT * 4) ? (BCNT * BSIZE) : ((size * BSIZE) / 4);
-			if (fsize<r) r=fsize;
 			printf("\rCopying run %02i starting at block %08X with len %08X [%03d%%]", j, inode->runs[j].start, 
 				inode->runs[j].len, (int)((double)written/(double)origfsize*100));
 			fflush(stdout);
@@ -118,6 +131,7 @@ int dump_file(int fdd, off64_t start, inode *inode, char *outfile)
 				close(fdf);
 				return -1;
 			}
+			if (fsize<r) r=fsize;
 			fsize-=r;
 			if(write(fdf, buffer, r)!=r)
 			{
@@ -180,11 +194,12 @@ int read_itbl(int fdd, off64_t start, itbl *itble)
 		if (cnt == ITABLES) return 0;
 	}
 
-	fprintf (stderr, "Cannot find all inode tables.\n");
-	return -1;
+	// It seems that there are HDDs where not all inode tables are present...
+	fprintf (stderr, "Warning: Cannot find all inode tables.\n");
+	return 0;
 }
 
-int dump_dir(int fdd, off64_t start, off64_t dir_offset, itbl *itble, directory *dir, char *outdir)
+int dump_dir(int fdd, off64_t start, off64_t dir_offset, itbl *itble, directory *dir, char *outdir, int list)
 {
 	int i, j, page_len;
 	char file[PATH_MAX], buffer[ISIZE];
@@ -243,7 +258,7 @@ int dump_dir(int fdd, off64_t start, off64_t dir_offset, itbl *itble, directory 
     					i, page->entries[i].inode_id, inod->magic);
     				return -1;
     			}
-    			if (!inod->runs[0].start)
+    			if ((inod->hsize>0 || inod->size>0) && !inod->runs[0].start)
     			{
     				itbl itbl1[ITABLES]={0};
     				int j;
@@ -259,7 +274,7 @@ int dump_dir(int fdd, off64_t start, off64_t dir_offset, itbl *itble, directory 
     					}
     				}
     			}
-    			dump_file(fdd, start, inod, file);
+    			if (!list) dump_file(fdd, start, inod, file); else list_file(inod, file);
     			utb.actime=utb.modtime=inod->time1 + TIME_OFFSET;
     			break;
     		case TYPE_DIRECTORY:
@@ -270,7 +285,7 @@ int dump_dir(int fdd, off64_t start, off64_t dir_offset, itbl *itble, directory 
     				return -1;
     			}
     			mkdir(file,0775);
-    			dump_dir(fdd, start, offset, itble, idir, file);
+    			dump_dir(fdd, start, offset, itble, idir, file, list);
     			utb.actime=utb.modtime=idir->time1 + TIME_OFFSET;
     			break;
     		}
@@ -288,8 +303,8 @@ int main(int argc, char **argv)
 	directory root;
 	int ret;
 
-	printf ("extract_meihdfs V1.4 - (c) leecher@dose.0wnz.at, 2015\n\n");
-	if (argc<3)
+	printf ("extract_meihdfs V1.5 - (c) leecher@dose.0wnz.at, 2015\n\n");
+	if (argc<2)
 	{
 		printf ("Usage: %s <Image> <Output dir>\n", argv[0]);
 		return -1;
@@ -324,7 +339,7 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	ret = dump_dir(fdd, start, offset, itbl, &root, argv[2]);
+	ret = dump_dir(fdd, start, offset, itbl, &root, argc>2?argv[2]:".", argc<=2);
 	close(fdd);
 	return ret;
 }

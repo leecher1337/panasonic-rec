@@ -61,7 +61,7 @@ typedef struct inode {
     uint32 generation;	// Ok, not sure what EXACTLY that is, but it DOES match on all stuff done last ... AND it's in superblock.
 			// ... except multiple directories can have the same ... ok, I think I miss some piece of puzzle here.
     uint32 inode_id;	// This is the number which is present in directory entry ...
-    uint32 i1;		// 1
+    uint32 present;		// 0 - File is empty, 1 - File contains data
     uint32 item_len;	// not sure if it can be <>1 for actuall inode ... it can be different for directory
 
     uint32 size;	// File size in bytes, low part
@@ -121,6 +121,7 @@ typedef struct dir_entry {
 typedef struct dir_page {
     uint16 d7[DIR_BEFORE_ENTRIES];
     dir_entry entries[DIR_ENTRIES_OTHER];
+    unsigned char padding[96];
 } dir_page;
 
 typedef struct directory {

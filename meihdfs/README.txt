@@ -18,7 +18,8 @@ damaged and data can be rescued. However if you want to make sure, you
 may want to consult a data recovery company to do a professional rescue
 of the harddisk image, because the harddisk may die during dumping!
 
-So the next thing to do is to dump the contens of the disk to an image
+If you just want to dump a sane harddrive, you can skip this step.
+Otherwise, the next thing to do is to dump the contens of the disk to an image
 file so you need to have at least the size of the HDD
 available on one of your harddisks to make an image. 
 You may need up to the same size for the extracted movie data then, 
@@ -46,6 +47,13 @@ If the file allocation structures are intact, you have a good chance for
 a painless recovery using this tool.
 I assume that the name of the image you created in the previous step is 
 image.dd
+If you just want to dump a sane harddrive without having an image, use 
+the physical address of the drive, i.e. on Linux /dev/sdX or on 
+Windows \\.\PhysicalDriveX
+You can get a list of the attached physical drives with the following 
+command:
+
+wmic diskdrive list brief
 
 You need to have an empty destination directory where the VOB files will
 be recovered to. Assuming your destination directory is f:\dump just issue:
@@ -132,7 +140,7 @@ http://www.pixelbeat.org/programs/dvd-vr/
 using my own research about the .IFO structures of the Panasonic
 recorder.
 
-The extract tool is based on some research done by Honza Maly 
+The extract tool is based on research done by Honza Maly 
 (http://hkmaly.comli.com/) and my own research.
 
 Technical details

@@ -337,19 +337,21 @@ udf_read_sectors (const udf_t *p_udf, void *ptr, lsn_t i_start,
 static int
 search_hdr(int fdd, uint32_t *part_start)
 {
-  udf_tag_t tag;
+  char buffer[4096];
+  udf_tag_t *tag=(udf_tag_t*)buffer;
   uint64_t offset;
 
   for (offset=0; lseek64(fdd, offset, SEEK_SET)!=(off64_t)-1; offset+=0x10000)
   {
-    if(read(fdd, &tag, sizeof(tag))!=sizeof(tag))
+    
+    if(read(fdd, buffer, sizeof(buffer))!=sizeof(buffer))
     {
       fprintf(stderr, "Read error @%10llX: %s\n", offset, strerror(errno));
       return -1;
     }
     printf ("\rSearching UDF filesystem header...%10llX", offset);
     fflush(stdout);
-    if (!udf_checktag(&tag, TAGID_FSD))
+    if (!udf_checktag(tag, TAGID_FSD))
     {
       printf (" FOUND!\n");
       *part_start = offset/UDF_BLOCKSIZE;
