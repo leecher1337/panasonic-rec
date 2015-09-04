@@ -1145,7 +1145,7 @@ static void fix_mpeg2_aspect(uint8_t* buf, const unsigned int bs, const unsigned
     p_video_attr_t s_video_attr = { .aspect=ifo_video_attr.aspect, .width=-1, .height=-1 };
 
     if (sequence_offset == -1) {
-        if ((sequence_offset = find_mpeg_header(buf, bs-SEQUENCE_LEN, SEQUENCE_ID)) >= 0) {
+        if ((sequence_offset = find_mpeg_header(buf, bs-SEQUENCE_LEN-MPEG_HEADER_LEN, SEQUENCE_ID)) >= 0) {
             found_sequence_header = true;
 #ifndef NDEBUG
             fprintf(stdinfo,"Found SH  @ %d+%d\n", sector, sequence_offset);
