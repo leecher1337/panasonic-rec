@@ -47,8 +47,12 @@ typedef struct block_run {
 
 #define INODE_MAGIC				0x81C00001	// At least it LOOKS like magic
 #define INODE_MAGIC_21			0x81800001
+#define INODE_MAGIC_GEN			0x81000001	// Looks like this is generic..
+#define INODE_MAGIC_MASK		0xFF00FFFF	// ..using this mask
 #define DIRECTORY_MAGIC			0x41C20001
 #define DIRECTORY_MAGIC_21		0x41C00001
+#define DIRECTORY_MAGIC_GEN		0x41000001	// Looks like this is generic
+#define DIRECTORY_MAGIC_MASK	0xFF00FFFF	// ..using this mask
 #define ROOTDIR_MAGIC 			0x41FF0001	// Magic of root directory
 
 #define MPEG_MAGIC	0xBA010000
@@ -61,7 +65,7 @@ typedef struct inode {
     uint32 generation;	// Ok, not sure what EXACTLY that is, but it DOES match on all stuff done last ... AND it's in superblock.
 			// ... except multiple directories can have the same ... ok, I think I miss some piece of puzzle here.
     uint32 inode_id;	// This is the number which is present in directory entry ...
-    uint32 present;		// 0 - File is empty, 1 - File contains data
+    uint32 factor;		// factor to multiply lewn in block size of runs with...
     uint32 item_len;	// not sure if it can be <>1 for actuall inode ... it can be different for directory
 
     uint32 size;	// File size in bytes, low part
