@@ -64,7 +64,7 @@ int search_hdr(EXTRINST *pInst)
 {
 	char buffer[512];
 
-	for (pInst->start=0; lseek64(pInst->fdd, pInst->start, SEEK_SET)!=(off64_t)-1; pInst->start+=0x10000)
+	for (; lseek64(pInst->fdd, pInst->start, SEEK_SET)!=(off64_t)-1; pInst->start+=0x10000)
 	{
 		if(read(pInst->fdd, buffer, sizeof(buffer))!=sizeof(buffer))
 		{
@@ -317,19 +317,26 @@ int main(int argc, char **argv)
 	off64_t offset;
 	itbl itbl[ITABLES_MAX]={0};
 	directory root;
-	int ret, itables;
+	int ret, itables, as=1;
 
-	printf ("extract_meihdfs V1.6 - (c) leecher@dose.0wnz.at, 2016\n\n");
+	printf ("extract_meihdfs V1.7 - (c) leecher@dose.0wnz.at, 2016\n\n");
 	if (argc<2)
 	{
-		printf ("Usage: %s <Image> <Output dir>\n", argv[0]);
+		printf ("Usage: %s [-s<Start>] <Image> <Output dir>\n\n", argv[0]);
+		printf ("\t-s\tOptional hex offset where to start searching header\n\ti.e.: -s0xA4000000 \n");
 		return -1;
 	}
 
-	inst.fdd = open(argv[1], O_RDONLY|O_LARGEFILE|O_BINARY);
+	if (sscanf(argv[as], "-s0x%llx", &inst.start) > 0)
+	{
+		as++;
+		printf ("Using user supplied start offset %08X\n", inst.start);
+	}
+
+	inst.fdd = open(argv[as], O_RDONLY|O_LARGEFILE|O_BINARY);
 	if(inst.fdd == -1)
 	{
-		fprintf(stderr, "Error opening image %s:%s\n", argv[1], strerror(errno));
+		fprintf(stderr, "Error opening image %s:%s\n", argv[as], strerror(errno));
 		return -1;
 	}
 
@@ -356,7 +363,8 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	ret = dump_dir(&inst, offset, itbl, itables, &root, argc>2?argv[2]:".", argc<=2);
+	as++;
+	ret = dump_dir(&inst, offset, itbl, itables, &root, argc>as?argv[as]:".", argc<=as);
 	close(inst.fdd);
 	return ret;
 }
