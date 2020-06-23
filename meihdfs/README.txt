@@ -131,7 +131,7 @@ However this tool requires you to install the python framework, so if you
 want a simple executable to do dumping, use my pioneer_rec tool
 and read the README.txt section about extraction there:
 
-https://code.google.com/p/pioneer-rec/
+https://github.com/leecher1337/pioneer-rec
 
 Acknowledgements
 ================

@@ -1,5 +1,5 @@
-There seem to be at least 2 types of Filesystems in use on Panasonic DVR recorders:
-The oder ones use UDF, the newer ones seem to have a custom file system called
+There seem to be at least 2 types of filesystems in use on Panasonic DVR recorders:
+The older ones use UDF, the newer ones seem to have a custom filesystem called
 MEIHDFS-V2.0. So if the harddisk in such a DVR-Recorder dies, it is
 difficult to recover data from it, because the filesystem is entirely
 undocumented and proprietary.
@@ -21,7 +21,7 @@ After successful extraction, you can do this to extract the programs:
 `dvd-vr VR_MANGR.IFO VR_MOVIE.VRO`
 
 Windows Binary: [udf_dump.zip](http://dose.0wnz.at/scripts/cpp/udf_dump.zip)
-For Linux, just type make to compile each program.
+For Linux, just type `make` to compile each program.
 
 
 # MEIHDFS
@@ -36,7 +36,7 @@ After successful extraction, you can do this to extract the programs:
 `for /r "F:\dump\DVD_RTAV\" %I in (*.VRO) do dvd-vr -n [ts]-[label] "%~dI%~pI%~nI.IFO" "%~I"`
 
 Windows Binary: [meihdfs.zip](http://dose.0wnz.at/scripts/cpp/meihdfs.zip)
-For Linux, just type make to compile each program.
+For Linux, just type `make` to compile each program.
 
 # Other Recorders
 For Pioneer DVR recorders, you can have a look at my [pioneer-rec](https://github.com/leecher1337/pioneer-rec/) project.
