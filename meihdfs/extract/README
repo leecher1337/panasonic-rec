@@ -1,0 +1,10 @@
+README
+
+PRE-REQUISITES:     sudo apt-get install gcc-multilib
+
+SYNOPSIS:           A program to extract the MEIHDFS-V2.0 file system
+BUILD:              make
+RUN:                ./extract_meihdfs <source> <Destination>
+INSTALL in $PATH:   sudo make install
+INSTALL in package: make install PREFIX=/usr DESTDIR=$RPM_BUILD_ROOT
+
