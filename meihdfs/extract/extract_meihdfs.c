@@ -98,6 +98,7 @@ static int read_safe(int fd, char* buffer, int size)
 }
 
 #define FILETIME(tim) (tim + (pInst->ver<3?TIME_OFFSET:0))
+#define FILESIZE(ino) (((off64_t)ino->hsize << 32) + ino->size) // Or are the higher bits of size elsewhere?
 
 static int search_hdr(EXTRINST *pInst)
 {
@@ -110,11 +111,10 @@ static int search_hdr(EXTRINST *pInst)
 			fprintf(stderr, "Read error @%10llX: %s\n", pInst->start, strerror(errno));
 			return -1;
 		}
-		printf ("\rSearching MEIHDFS header...%10llX", pInst->start);
-		fflush(stdout);
+		fprintf (stderr, "\rSearching MEIHDFS header...%10llX", pInst->start);
 		if(memcmp(buffer+8, "MEIHDFS-V2.", 11) == 0 || memcmp(buffer+8, "HDFS2.", 6) == 0)
 		{
-			printf (" FOUND!\n");
+			fprintf (stderr, " FOUND!\n");
 			return (pInst->ver = buffer[8]=='M'?buffer[19]-'0':buffer[14]-'0');
 		}
 	}
@@ -130,8 +130,8 @@ static int list_file(EXTRINST *pInst, inode *inode, char *outfile)
 
 	ttime = FILETIME(inode->time1);
 	btime = gmtime(&ttime);
-	fsize = ((off64_t)inode->hsize << 32) + inode->size;	// Or are the higher bits of size elsewhere?
-	printf("%4i-%02i-%02i %02i:%02i:%02i %20lld %s\n", btime->tm_year + 1900, 
+	fsize = FILESIZE(inode);
+	fprintf(stderr, "%4i-%02i-%02i %02i:%02i:%02i %20lld %s\n", btime->tm_year + 1900,
 		btime->tm_mon+1, btime->tm_mday, btime->tm_hour, 
 		btime->tm_min, btime->tm_sec, fsize, outfile);
 }
@@ -153,8 +153,8 @@ static int dump_file(EXTRINST *pInst, inode *inode, char *outfile)
 	
 	ttime = FILETIME(inode->time1);
 	btime = gmtime(&ttime);
-	fsize = origfsize = ((off64_t)inode->hsize << 32) + inode->size;	// Or are the higher bits of size elsewhere?
-	printf("%4i-%02i-%02i %02i:%02i:%02i %6lld%s %s\n", btime->tm_year + 1900, 
+	fsize = origfsize = FILESIZE(inode);
+	fprintf(stderr, "%4i-%02i-%02i %02i:%02i:%02i %6lld%s %s\n", btime->tm_year + 1900,
 		btime->tm_mon+1, btime->tm_mday, btime->tm_hour, 
 		btime->tm_min, btime->tm_sec, fsize<1024?fsize:(fsize<1024*1024?fsize/1024:fsize/1024/1024),
 		fsize<1024?" ":(fsize<1024*1024?"k":"M"), outfile);
@@ -169,12 +169,12 @@ static int dump_file(EXTRINST *pInst, inode *inode, char *outfile)
 		for (size = inode->runs[j].len * inode->factor; size>0 && fsize>0; size -= BCNT * 4, written+=r)
 		{
 			r = (size > BCNT * 4) ? (BCNT * BSIZE) : ((size * BSIZE) / 4);
-			printf("\rCopying run %02i starting at block %08X with len %08X [%03d%%]", j, inode->runs[j].start, 
+			fprintf(stderr, "\rCopying run %02i starting at block %08X with len %08X [%03d%%]", j, inode->runs[j].start,
 				inode->runs[j].len, (int)((double)written/(double)origfsize*100));
 			fflush(stdout);
 			if(read_safe(pInst->fdd, buffer, r) < 0)
 			{
-				fprintf(stderr, "Error reading block %i: %s\n", inode->runs[j].start, strerror(errno));
+				fprintf(stderr, "\nError reading block %i: %s\n", inode->runs[j].start, strerror(errno));
 				close(fdf);
 				return -1;
 			}
@@ -182,14 +182,14 @@ static int dump_file(EXTRINST *pInst, inode *inode, char *outfile)
 			fsize-=r;
 			if(write(fdf, buffer, r)!=r)
 			{
-			    fprintf(stderr, "Error writing file %s: %s\n",outfile, strerror(errno));
+				fprintf(stderr, "\nError writing file %s: %s\n",outfile, strerror(errno));
 				close(fdf);
 				return -1;
 			}
 		}
 	}
 	close(fdf);
-	printf ("\r%-79s\r", " ");
+	fprintf (stderr, "\r%-79s\r", " ");
 	return 0;
 }
 
@@ -237,7 +237,7 @@ static int read_itbl(int fdd, off64_t start, itbl *itble, int itables)
 			} else bValid = 1;
 			if (bValid)
 			{
-				printf ("Inode table #%d/%d found @%10llX\n", ++cnt, itables, start + ITBL_START + i);
+				fprintf (stderr, "Inode table #%d/%d found @%10llX\n", ++cnt, itables, start + ITBL_START + i);
 			}
 		}
 		if (cnt == itables) return 0;
@@ -358,7 +358,7 @@ int main(int argc, char **argv)
 	directory root;
 	int ret, itables, as=1;
 
-	printf ("extract_meihdfs V1.7 - (c) leecher@dose.0wnz.at, 2016\n\n");
+	fprintf (stderr, "extract_meihdfs V1.7 - (c) leecher@dose.0wnz.at, 2016\n\n");
 	if (argc<2)
 	{
 		fprintf (stderr, "Usage: %s [-s<Start>] [-r1] <Image> <Output dir>\n\n"
@@ -371,7 +371,7 @@ int main(int argc, char **argv)
 	if (sscanf(argv[as], "-s0x%llx", &inst.start) > 0)
 	{
 		as++;
-		printf ("Using user supplied start offset %08X\n", inst.start);
+		fprintf (stderr, "Using user supplied start offset %08X\n", inst.start);
 	}
 
 	if (strcmp(argv[as], "-r1") == 0)
