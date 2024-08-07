@@ -257,6 +257,7 @@ static int dump_dir(EXTRINST *pInst, off64_t dir_offset, itbl *itble, int itable
 	off64_t offset;
 	ssize_t rd=-1;
 	struct utimbuf utb={0};
+	struct stat64 stb;
     dir_page *page, lpage;
 
     page = (dir_page*)&dir->d7;
@@ -324,8 +325,15 @@ static int dump_dir(EXTRINST *pInst, off64_t dir_offset, itbl *itble, int itable
     					}
     				}
     			}
-    			if (!list) dump_file(pInst, inod, file); else list_file(pInst, inod, file);
     			utb.actime=utb.modtime=FILETIME(inod->time1);
+    			// Check for already dumped files
+    			if (stat64(file, &stb) == 0 && stb.st_mtime == utb.modtime && FILESIZE(inod) == stb.st_size)
+    			{
+    				fprintf(stderr, "Skipping previously dumped file %s\n", file);
+    				break;
+    			}
+    			if (!list) dump_file(pInst, inod, file); else list_file(pInst, inod, file);
+    			utime(file, &utb);
     			break;
     		case TYPE_DIRECTORY:
     			idir = (directory*)buffer;
@@ -337,9 +345,9 @@ static int dump_dir(EXTRINST *pInst, off64_t dir_offset, itbl *itble, int itable
     			mkdir(file,0775);
     			dump_dir(pInst, offset, itble, itables, idir, file, list);
     			utb.actime=utb.modtime=FILETIME(idir->time1);
+    			utime(file, &utb);
     			break;
     		}
-    		utime(file, &utb);
 			if (page->entries[i].len>sizeof(page->entries[i].filename))
 			{
 				fprintf (stderr, "Info: filename length exceeds directory entry size, ending directory traversal.\n");
