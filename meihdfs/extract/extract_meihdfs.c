@@ -58,9 +58,48 @@ typedef struct
 	int ver;		// Filesystem version
 } EXTRINST;
 
+static int single_sector = 0; // Use single sector mode with error recovery
+
+#define SECTOR_SIZE 512
+
+static int read_safe(int fd, char* buffer, int size)
+{
+	if (single_sector)
+	{
+		// Read sectors one by one to loose minimal amount of data
+		off64_t start = lseek64(fd, 0, SEEK_CUR); // Start offset for recovery
+		if (start < 0)
+		{
+			fprintf(stderr, "Failed to get start position.\n");
+			return -1;
+		}
+
+		while (size > SECTOR_SIZE)
+		{
+			if (read(fd, buffer, SECTOR_SIZE) < 0)
+			{
+				fprintf(stderr, "\nError reading physical block %lli: %s - padding with zero.\n", start / SECTOR_SIZE, strerror(errno));
+				memset(buffer, 0, SECTOR_SIZE);
+				// move to next sector
+				if (lseek64(fd, start + SECTOR_SIZE, SEEK_SET) < 0)
+				{
+					fprintf(stderr, "Failed to move to next sector.\n");
+					return -1;
+				}
+			}
+
+			start += SECTOR_SIZE;
+			buffer += SECTOR_SIZE;
+			size -= SECTOR_SIZE;
+		}
+	}
+
+	return read(fd, buffer, size);
+}
+
 #define FILETIME(tim) (tim + (pInst->ver<3?TIME_OFFSET:0))
 
-int search_hdr(EXTRINST *pInst)
+static int search_hdr(EXTRINST *pInst)
 {
 	char buffer[512];
 
@@ -83,7 +122,7 @@ int search_hdr(EXTRINST *pInst)
 	return -2;
 }
 
-int list_file(EXTRINST *pInst, inode *inode, char *outfile)
+static int list_file(EXTRINST *pInst, inode *inode, char *outfile)
 {
 	time_t ttime;
 	struct tm *btime;
@@ -97,7 +136,7 @@ int list_file(EXTRINST *pInst, inode *inode, char *outfile)
 		btime->tm_min, btime->tm_sec, fsize, outfile);
 }
 
-int dump_file(EXTRINST *pInst, inode *inode, char *outfile)
+static int dump_file(EXTRINST *pInst, inode *inode, char *outfile)
 {
 	int fdf;
 	time_t ttime;
@@ -133,7 +172,7 @@ int dump_file(EXTRINST *pInst, inode *inode, char *outfile)
 			printf("\rCopying run %02i starting at block %08X with len %08X [%03d%%]", j, inode->runs[j].start, 
 				inode->runs[j].len, (int)((double)written/(double)origfsize*100));
 			fflush(stdout);
-			if(read(pInst->fdd, buffer, r) < 0)
+			if(read_safe(pInst->fdd, buffer, r) < 0)
 			{
 				fprintf(stderr, "Error reading block %i: %s\n", inode->runs[j].start, strerror(errno));
 				close(fdf);
@@ -160,7 +199,7 @@ int dump_file(EXTRINST *pInst, inode *inode, char *outfile)
 #define ITABLES_V23 9
 #define ITABLES_MAX ITABLES_V23
 
-int read_itbl(int fdd, off64_t start, itbl *itble, int itables)
+static int read_itbl(int fdd, off64_t start, itbl *itble, int itables)
 {
 	/* I don't know yet how they can be found, normally they are at these offsets, but not always: */
 	//off64_t itbl_offsets[] = {0, 0x1000, 0x2000, 0xF000, 0x10000, 0x11000};
@@ -209,7 +248,7 @@ int read_itbl(int fdd, off64_t start, itbl *itble, int itables)
 	return 0;
 }
 
-int dump_dir(EXTRINST *pInst, off64_t dir_offset, itbl *itble, int itables, directory *dir, char *outdir, int list)
+static int dump_dir(EXTRINST *pInst, off64_t dir_offset, itbl *itble, int itables, directory *dir, char *outdir, int list)
 {
 	int i, j, page_len;
 	char file[PATH_MAX], buffer[ISIZE];
@@ -322,8 +361,10 @@ int main(int argc, char **argv)
 	printf ("extract_meihdfs V1.7 - (c) leecher@dose.0wnz.at, 2016\n\n");
 	if (argc<2)
 	{
-		printf ("Usage: %s [-s<Start>] <Image> <Output dir>\n\n", argv[0]);
-		printf ("\t-s\tOptional hex offset where to start searching header\n\ti.e.: -s0xA4000000 \n");
+		fprintf (stderr, "Usage: %s [-s<Start>] [-r1] <Image> <Output dir>\n\n"
+		         "\t-s\tOptional hex offset where to start searching header\n"
+		         "\t\ti.e.: -s0xA4000000 \n"
+		         "\t-1\tUse single sector mode and continue on errors in video files\n", argv[0]);
 		return -1;
 	}
 
@@ -331,6 +372,13 @@ int main(int argc, char **argv)
 	{
 		as++;
 		printf ("Using user supplied start offset %08X\n", inst.start);
+	}
+
+	if (strcmp(argv[as], "-r1") == 0)
+	{
+		++as;
+		fprintf (stderr, "Using single sector recovery mode\n");
+		single_sector = 1;
 	}
 
 	inst.fdd = open(argv[as], O_RDONLY|O_LARGEFILE|O_BINARY);
