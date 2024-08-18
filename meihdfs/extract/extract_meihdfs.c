@@ -64,37 +64,39 @@ static int single_sector = 0; // Use single sector mode with error recovery
 
 static int read_safe(int fd, char* buffer, int size)
 {
-	if (single_sector)
+	if (!single_sector)
+		return read(fd, buffer, size);
+
+	// Read sectors one by one to loose minimal amount of data
+	off64_t start = lseek64(fd, 0, SEEK_CUR); // Start offset for recovery
+	if (start < 0)
 	{
-		// Read sectors one by one to loose minimal amount of data
-		off64_t start = lseek64(fd, 0, SEEK_CUR); // Start offset for recovery
-		if (start < 0)
-		{
-			fprintf(stderr, "Failed to get start position.\n");
-			return -1;
-		}
-
-		while (size > SECTOR_SIZE)
-		{
-			if (read(fd, buffer, SECTOR_SIZE) < 0)
-			{
-				fprintf(stderr, "\nError reading physical block %ji: %s - padding with zero.\n", start / SECTOR_SIZE, strerror(errno));
-				memset(buffer, 0, SECTOR_SIZE);
-				// move to next sector
-				if (lseek64(fd, start + SECTOR_SIZE, SEEK_SET) < 0)
-				{
-					fprintf(stderr, "Failed to move to next sector.\n");
-					return -1;
-				}
-			}
-
-			start += SECTOR_SIZE;
-			buffer += SECTOR_SIZE;
-			size -= SECTOR_SIZE;
-		}
+		fprintf(stderr, "Failed to get start position.\n");
+		return -1;
 	}
 
-	return read(fd, buffer, size);
+	while (size > 0)
+	{
+		int block = block > SECTOR_SIZE ? SECTOR_SIZE : size;
+
+		if (read(fd, buffer, block) < 0)
+		{
+			fprintf(stderr, "\nError reading physical block %ji: %s - padding with zero.\n", start / SECTOR_SIZE, strerror(errno));
+			memset(buffer, 0, block);
+			// move to next sector
+			if (size > SECTOR_SIZE && lseek64(fd, start + SECTOR_SIZE, SEEK_SET) < 0)
+			{
+				fprintf(stderr, "Failed to move to next sector.\n");
+				return -1;
+			}
+		}
+
+		start += block;
+		buffer += block;
+		size -= block;
+	}
+
+	return 0;
 }
 
 #define FILETIME(tim) (tim + (pInst->ver<3?TIME_OFFSET:0))
