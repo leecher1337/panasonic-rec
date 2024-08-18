@@ -1,4 +1,4 @@
-CFLAGS=-O3 -mtune=i686 -march=i486 -pipe
+CFLAGS=-O3 -pipe
 
 all: udf_dump
 

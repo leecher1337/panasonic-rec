@@ -1,6 +1,6 @@
 # arch-tag: Makefile - basic CFLAGS - fileutils/DVDrecorder directory
 
-CFLAGS += -mtune=native -march=i486 -m32 -pipe
+CFLAGS += -mtune=native -pipe
 
 all: extract
 
