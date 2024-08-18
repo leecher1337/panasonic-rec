@@ -47,6 +47,9 @@
 #ifndef O_BINARY
 #define O_BINARY 0
 #endif
+#ifndef O_DIRECT
+#define O_DIRECT 0
+#endif
 #ifdef WIN32
 #define mkdir(x,y) mkdir(x)
 #endif
@@ -391,7 +394,7 @@ int main(int argc, char **argv)
 		single_sector = 1;
 	}
 
-	inst.fdd = open(argv[as], O_RDONLY|O_LARGEFILE|O_BINARY);
+	inst.fdd = open(argv[as], single_sector ? O_RDONLY|O_LARGEFILE|O_BINARY|O_DIRECT : O_RDONLY|O_LARGEFILE|O_BINARY);
 	if(inst.fdd == -1)
 	{
 		fprintf(stderr, "Error opening image %s:%s\n", argv[as], strerror(errno));
