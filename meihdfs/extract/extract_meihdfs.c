@@ -374,7 +374,7 @@ int main(int argc, char **argv)
 		fprintf (stderr, "Usage: %s [-s<Start>] [-r1] <Image> <Output dir>\n\n"
 		         "\t-s\tOptional hex offset where to start searching header\n"
 		         "\t\ti.e.: -s0xA4000000 \n"
-		         "\t-1\tUse single sector mode and continue on errors in video files\n", argv[0]);
+		         "\t-1\tUse single sector mode and continue on read errors in video files\n", argv[0]);
 		return -1;
 	}
 
