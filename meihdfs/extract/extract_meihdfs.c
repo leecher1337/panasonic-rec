@@ -78,7 +78,7 @@ static int read_safe(int fd, char* buffer, int size)
 		{
 			if (read(fd, buffer, SECTOR_SIZE) < 0)
 			{
-				fprintf(stderr, "\nError reading physical block %lli: %s - padding with zero.\n", start / SECTOR_SIZE, strerror(errno));
+				fprintf(stderr, "\nError reading physical block %ji: %s - padding with zero.\n", start / SECTOR_SIZE, strerror(errno));
 				memset(buffer, 0, SECTOR_SIZE);
 				// move to next sector
 				if (lseek64(fd, start + SECTOR_SIZE, SEEK_SET) < 0)
@@ -108,10 +108,10 @@ static int search_hdr(EXTRINST *pInst)
 	{
 		if(read(pInst->fdd, buffer, sizeof(buffer))!=sizeof(buffer))
 		{
-			fprintf(stderr, "Read error @%10llX: %s\n", pInst->start, strerror(errno));
+			fprintf(stderr, "Read error @%10jX: %s\n", pInst->start, strerror(errno));
 			return -1;
 		}
-		fprintf (stderr, "\rSearching MEIHDFS header...%10llX", pInst->start);
+		fprintf (stderr, "\rSearching MEIHDFS header...%10jX", pInst->start);
 		if(memcmp(buffer+8, "MEIHDFS-V2.", 11) == 0 || memcmp(buffer+8, "HDFS2.", 6) == 0)
 		{
 			fprintf (stderr, " FOUND!\n");
@@ -131,7 +131,7 @@ static int list_file(EXTRINST *pInst, inode *inode, char *outfile)
 	ttime = FILETIME(inode->time1);
 	btime = gmtime(&ttime);
 	fsize = FILESIZE(inode);
-	fprintf(stderr, "%4i-%02i-%02i %02i:%02i:%02i %20lld %s\n", btime->tm_year + 1900,
+	fprintf(stderr, "%4i-%02i-%02i %02i:%02i:%02i %20jd %s\n", btime->tm_year + 1900,
 		btime->tm_mon+1, btime->tm_mday, btime->tm_hour, 
 		btime->tm_min, btime->tm_sec, fsize, outfile);
 }
@@ -154,7 +154,7 @@ static int dump_file(EXTRINST *pInst, inode *inode, char *outfile)
 	ttime = FILETIME(inode->time1);
 	btime = gmtime(&ttime);
 	fsize = origfsize = FILESIZE(inode);
-	fprintf(stderr, "%4i-%02i-%02i %02i:%02i:%02i %6lld%s %s\n", btime->tm_year + 1900,
+	fprintf(stderr, "%4i-%02i-%02i %02i:%02i:%02i %6jd%s %s\n", btime->tm_year + 1900,
 		btime->tm_mon+1, btime->tm_mday, btime->tm_hour, 
 		btime->tm_min, btime->tm_sec, fsize<1024?fsize:(fsize<1024*1024?fsize/1024:fsize/1024/1024),
 		fsize<1024?" ":(fsize<1024*1024?"k":"M"), outfile);
@@ -169,7 +169,7 @@ static int dump_file(EXTRINST *pInst, inode *inode, char *outfile)
 		for (size = inode->runs[j].len * inode->factor; size>0 && fsize>0; size -= BCNT * 4, written+=r)
 		{
 			r = (size > BCNT * 4) ? (BCNT * BSIZE) : ((size * BSIZE) / 4);
-			fprintf(stderr, "\rCopying run %02i starting at block %08X with len %08X [%03d%%]", j, inode->runs[j].start,
+			printf("\rCopying run %02i starting at block %08X with len %08X [%03d%%]", j, inode->runs[j].start,
 				inode->runs[j].len, (int)((double)written/(double)origfsize*100));
 			fflush(stdout);
 			if(read_safe(pInst->fdd, buffer, r) < 0)
@@ -208,7 +208,7 @@ static int read_itbl(int fdd, off64_t start, itbl *itble, int itables)
 
 	if (lseek64(fdd, start + ITBL_START, SEEK_SET) == (off64_t)-1)
 	{
-		fprintf (stderr, "Cannot seek to start of Inode directory @%10llX: %s\n", 
+		fprintf (stderr, "Cannot seek to start of Inode directory @%10jX: %s\n",
 			start + ITBL_START, strerror(errno));
 		return -1;
 	}
@@ -218,7 +218,7 @@ static int read_itbl(int fdd, off64_t start, itbl *itble, int itables)
 	{
 		if (read(fdd, &itble[cnt], sizeof(itble[0])) != sizeof(itble[0]))
 		{
-			fprintf (stderr, "Cannot read Inode directory @%10llX: %s\n", 
+			fprintf (stderr, "Cannot read Inode directory @%10jX: %s\n",
 				start + ITBL_START + i, strerror(errno));
 			return -1;
 		}
@@ -237,7 +237,7 @@ static int read_itbl(int fdd, off64_t start, itbl *itble, int itables)
 			} else bValid = 1;
 			if (bValid)
 			{
-				fprintf (stderr, "Inode table #%d/%d found @%10llX\n", ++cnt, itables, start + ITBL_START + i);
+				fprintf (stderr, "Inode table #%d/%d found @%10jX\n", ++cnt, itables, start + ITBL_START + i);
 			}
 		}
 		if (cnt == itables) return 0;
@@ -269,7 +269,7 @@ static int dump_dir(EXTRINST *pInst, off64_t dir_offset, itbl *itble, int itable
     		if (lseek64(pInst->fdd, (offset = dir_offset + j * ISIZE), SEEK_SET) == (off64_t)-1 ||
     			(rd=read(pInst->fdd, &lpage, sizeof(lpage))) != sizeof(lpage))
     		{
-    			fprintf (stderr, "Cannot read directory page %d @%10llX [rd=%d]: %s\n", 
+    			fprintf (stderr, "Cannot read directory page %d @%10jX [rd=%zd]: %s\n",
     				j, offset, rd, strerror(errno));
     			return -1;
     		}
@@ -284,14 +284,14 @@ static int dump_dir(EXTRINST *pInst, off64_t dir_offset, itbl *itble, int itable
     		/* Seek to given INODE */
 			if (page->entries[i].inode_id > itables*ITBL_SZ)
 			{
-				fprintf(stderr, "Inode %d (#%d @%10llX (pg %d)) exceeds size of available inode tables.\n", page->entries[i].inode_id, i, dir_offset + j * ISIZE, j);
+				fprintf(stderr, "Inode %d (#%d @%10jX (pg %d)) exceeds size of available inode tables.\n", page->entries[i].inode_id, i, dir_offset + j * ISIZE, j);
 				return -1;
 			}
     		if (lseek64(pInst->fdd, (offset = pInst->start + INODE_OFFSET(itble,page->entries[i].inode_id) * ISIZE),
     			 SEEK_SET) == (off64_t)-1 ||
     			(rd=read(pInst->fdd, buffer, sizeof(buffer))) != sizeof(buffer))
     		{
-    			fprintf (stderr, "Dir entry %d: Cannot read INODE %d @%10llX [rd=%d]: %s\n", 
+    			fprintf (stderr, "Dir entry %d: Cannot read INODE %d @%10jX [rd=%zd]: %s\n",
     				i, page->entries[i].inode_id, offset, rd, strerror(errno));
     			return -1;
     		}
@@ -376,10 +376,10 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	if (sscanf(argv[as], "-s0x%llx", &inst.start) > 0)
+	if (sscanf(argv[as], "-s0x%jx", &inst.start) > 0)
 	{
 		as++;
-		fprintf (stderr, "Using user supplied start offset %08X\n", inst.start);
+		fprintf (stderr, "Using user supplied start offset %08jX\n", inst.start);
 	}
 
 	if (strcmp(argv[as], "-r1") == 0)
@@ -407,14 +407,14 @@ int main(int argc, char **argv)
 	if (lseek64(inst.fdd, (offset = inst.start + INODE_OFFSET(itbl,0) * ISIZE), SEEK_SET) == (off64_t)-1 ||
 		read(inst.fdd, &root, sizeof(root)) != sizeof(root))
 	{
-		fprintf (stderr, "Cannot read root directory @%10llX: %s\n", offset, strerror(errno));
+		fprintf (stderr, "Cannot read root directory @%10jX: %s\n", offset, strerror(errno));
 		close(inst.fdd);
 		return -1;
 	}
 
 	if (root.magic != ROOTDIR_MAGIC)
 	{
-		fprintf (stderr, "Rootdirectory @%10llX doesn't have valid rootdir magic (magic = %08X).\n", offset, root.magic);
+		fprintf (stderr, "Rootdirectory @%10jX doesn't have valid rootdir magic (magic = %08X).\n", offset, root.magic);
 		close(inst.fdd);
 		return -1;
 	}
