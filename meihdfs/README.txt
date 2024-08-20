@@ -39,6 +39,11 @@ Therefore I recommend using a linux BootCD/system and dd_rescue.
 
 After creating the image, you are set to use my utility to recover your data.
 
+There is also a limited support for dealing with unreadable blocks without
+creating an image before using the -r1 option. It will skip these blocks
+and write zero bytes instead. This is behaves similar to interference with
+reception.
+
 Extracting the filesystem files
 ===============================
 Now the strategy on how to recover your remaining movie data largely depends
