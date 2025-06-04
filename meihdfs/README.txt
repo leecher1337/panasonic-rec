@@ -29,6 +29,11 @@ i.e. Datarescue's drdd:
 
 http://www.datarescue.com/photorescue/v3/drdd.htm
 
+As of 06/2025, the download links seem to be broken, so you may want to use 
+the archive.org mirror instead:
+
+https://web.archive.org/web/20250114205844/https://www.datarescue.com/freefiles/drdd.exe.zip
+
 However due to the way how windows handles bad drives, it's usually a pain
 dumping them on Windows, i.e. if the drive detaches itself from the bus 
 during read und is connected via a USB-Adapter, most dumper programs including
